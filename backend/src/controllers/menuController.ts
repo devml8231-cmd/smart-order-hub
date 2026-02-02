@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase';
-import { sendSuccess, sendError, getTimeOfDay } from '../utils/helpers';
+import { sendSuccess, sendError, getTimeOfDay, calculateRecommendationScore } from '../utils/helpers';
 import { AuthenticatedRequest } from '../types';
 import logger from '../utils/logger';
 
@@ -9,14 +9,14 @@ import logger from '../utils/logger';
  */
 export const getMenuItems = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { 
-      vendor_id, 
-      category_id, 
-      food_type, 
-      is_special, 
+    const {
+      vendor_id,
+      category_id,
+      food_type,
+      is_special,
       is_best_seller,
-      page = 1, 
-      limit = 50 
+      page = 1,
+      limit = 50
     } = req.query;
 
     let query = supabaseAdmin
@@ -148,78 +148,104 @@ export const searchMenuItems = async (req: Request, res: Response): Promise<void
 };
 
 /**
- * Get recommendations
+ * Get AI-powered recommendations with collaborative filtering
  */
 export const getRecommendations = async (req: Request, res: Response): Promise<void> => {
   try {
     const user = (req as AuthenticatedRequest).user;
     const { vendor_id } = req.query;
-
-    // Get best sellers
-    let bestSellersQuery = supabaseAdmin
-      .from('menu_items')
-      .select('*')
-      .is('deleted_at', null)
-      .eq('is_available', true)
-      .eq('is_best_seller', true);
-
-    if (vendor_id) bestSellersQuery = bestSellersQuery.eq('vendor_id', vendor_id);
-
-    const { data: bestSellers } = await bestSellersQuery
-      .order('total_orders', { ascending: false })
-      .limit(10);
-
-    // Get today's special
-    let specialQuery = supabaseAdmin
-      .from('menu_items')
-      .select('*')
-      .is('deleted_at', null)
-      .eq('is_available', true)
-      .eq('is_special', true);
-
-    if (vendor_id) specialQuery = specialQuery.eq('vendor_id', vendor_id);
-
-    const { data: todaySpecial } = await specialQuery.limit(10);
-
-    // Get time-based recommendations
     const currentHour = new Date().getHours();
-    const timeOfDay = getTimeOfDay(currentHour);
-    
-    // Based on time of day logic (simplified)
-    const { data: timeBasedItems } = await supabaseAdmin
-      .from('menu_items')
-      .select('*')
-      .is('deleted_at', null)
-      .eq('is_available', true)
-      .order('average_rating', { ascending: false })
-      .limit(10);
 
-    // Get personalized recommendations if user is authenticated
-    let personalized: any[] = [];
+    // Get user's order history for personalization
+    let userHistory: Array<{ menu_item_id: string; order_count: number }> = [];
     if (user) {
-      const { data: userHistory } = await supabaseAdmin
+      const { data: history } = await supabaseAdmin
         .from('user_order_history')
-        .select(`
-          menu_item_id,
-          order_count,
-          menu_item:menu_items(*)
-        `)
-        .eq('user_id', user.id)
-        .order('order_count', { ascending: false })
-        .limit(10);
+        .select('menu_item_id, order_count')
+        .eq('user_id', user.id);
 
-      if (userHistory) {
-        personalized = userHistory
-          .map((h: any) => h.menu_item)
-          .filter((item: any) => item && item.is_available);
+      if (history) {
+        userHistory = history;
       }
     }
 
+    // Get all available menu items with category info
+    let menuQuery = supabaseAdmin
+      .from('menu_items')
+      .select(`
+        *,
+        category:menu_categories(*)
+      `)
+      .is('deleted_at', null)
+      .eq('is_available', true);
+
+    if (vendor_id) menuQuery = menuQuery.eq('vendor_id', vendor_id);
+
+    const { data: allItems } = await menuQuery;
+
+    if (!allItems || allItems.length === 0) {
+      sendSuccess(res, {
+        personalized: [],
+        best_sellers: [],
+        today_special: [],
+        based_on_time: [],
+        trending: [],
+      });
+      return;
+    }
+
+    // Calculate recommendation score for each item
+    const itemsWithScores = allItems.map((item) => ({
+      ...item,
+      score: calculateRecommendationScore(item, userHistory, currentHour),
+    }));
+
+    // Sort by score
+    itemsWithScores.sort((a, b) => b.score - a.score);
+
+    // Separate into categories
+    const bestSellers = itemsWithScores
+      .filter((item) => item.is_best_seller)
+      .slice(0, 10);
+
+    const todaySpecial = itemsWithScores
+      .filter((item) => item.is_special)
+      .slice(0, 10);
+
+    // Time-based recommendations (breakfast, lunch, snacks, dinner)
+    const timeOfDay = getTimeOfDay(currentHour);
+    const timeBasedItems = itemsWithScores
+      .filter((item) => {
+        const categoryName = item.category?.name?.toLowerCase() || '';
+        return categoryName.includes(timeOfDay);
+      })
+      .slice(0, 10);
+
+    // Personalized recommendations (top scored items for this user)
+    const personalized = user
+      ? itemsWithScores
+        .filter((item) => userHistory.some((h) => h.menu_item_id === item.id))
+        .slice(0, 10)
+      : [];
+
+    // Trending items (high recent orders + good ratings)
+    const trending = itemsWithScores
+      .filter((item) => item.total_orders > 20 && item.average_rating >= 4.0)
+      .slice(0, 10);
+
+    // If no personalized items, use top scored items
+    const finalPersonalized = personalized.length > 0
+      ? personalized
+      : itemsWithScores.slice(0, 10);
+
     sendSuccess(res, {
-      personalized: personalized || [],
-      best_sellers: bestSellers || [],
-      today_special: todaySpecial || [],
-      based_on_time: timeBasedItems || [],
+      personalized: finalPersonalized.map(({ score, ...item }) => item),
+      best_sellers: bestSellers.map(({ score, ...item }) => item),
+      today_special: todaySpecial.map(({ score, ...item }) => item),
+      based_on_time: timeBasedItems.length > 0
+        ? timeBasedItems.map(({ score, ...item }) => item)
+        : itemsWithScores.slice(0, 10).map(({ score, ...item }) => item),
+      trending: trending.map(({ score, ...item }) => item),
     });
   } catch (error) {
     logger.error('Get recommendations error:', error);

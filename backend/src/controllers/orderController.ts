@@ -69,8 +69,8 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
     const orderDate = new Date();
     const tokenNumber = await generateTokenNumber(vendor_id, orderDate, supabaseAdmin);
 
-    // Calculate estimated ready time
-    const avgPrepTime = vendor.average_prep_time_minutes;
+    // Calculate estimated ready time with enhanced algorithm
+    const avgPrepTime = vendor.average_prep_time_minutes || 15;
     const { data: queueCount } = await supabaseAdmin
       .from('orders')
       .select('id', { count: 'exact' })
@@ -78,9 +78,22 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       .in('status', ['PLACED', 'PREPARING']);
 
     const queuePosition = (queueCount?.length || 0) + 1;
+
+    // Get preparation times for ordered items
+    const orderItemsWithPrepTime = items.map((item: any) => {
+      const menuItem = menuItems.find((mi) => mi.id === item.menu_item_id);
+      return {
+        preparation_time_minutes: menuItem?.preparation_time_minutes || 10,
+        quantity: item.quantity,
+      };
+    });
+
+    const currentHour = new Date().getHours();
     const { estimatedReadyTime, estimatedMinutes } = calculateETA(
       queuePosition,
-      avgPrepTime
+      avgPrepTime,
+      orderItemsWithPrepTime,
+      currentHour
     );
 
     // Create order

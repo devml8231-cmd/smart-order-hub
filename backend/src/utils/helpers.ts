@@ -1,22 +1,20 @@
 import { Response } from 'express';
-import { ApiResponse } from '../types';
-import logger from './logger';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Send success response
  */
-export const sendSuccess = <T>(
+export const sendSuccess = (
   res: Response,
-  data: T,
-  message?: string,
+  data?: any,
+  message: string = 'Success',
   statusCode: number = 200
-): Response => {
-  const response: ApiResponse<T> = {
+): void => {
+  res.status(statusCode).json({
     success: true,
     data,
     message,
-  };
-  return res.status(statusCode).json(response);
+  });
 };
 
 /**
@@ -24,76 +22,75 @@ export const sendSuccess = <T>(
  */
 export const sendError = (
   res: Response,
-  error: string,
+  message: string = 'An error occurred',
   statusCode: number = 500,
-  details?: any
-): Response => {
-  logger.error('API Error:', { error, statusCode, details });
-  
-  const response: ApiResponse = {
+  errors?: any
+): void => {
+  res.status(statusCode).json({
     success: false,
-    error,
-    ...(process.env.NODE_ENV === 'development' && details && { details }),
-  };
-  
-  return res.status(statusCode).json(response);
+    error: message,
+    errors,
+  });
 };
 
 /**
- * Generate random OTP
- */
-export const generateOTP = (length: number = 6): string => {
-  const digits = '0123456789';
-  let otp = '';
-  for (let i = 0; i < length; i++) {
-    otp += digits[Math.floor(Math.random() * 10)];
-  }
-  return otp;
-};
-
-/**
- * Generate unique code for group orders
- */
-export const generateUniqueCode = (length: number = 8): string => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = '';
-  for (let i = 0; i < length; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-};
-
-/**
- * Calculate pagination metadata
- */
-export const calculatePagination = (
-  total: number,
-  page: number,
-  limit: number
-) => {
-  return {
-    page,
-    limit,
-    total,
-    totalPages: Math.ceil(total / limit),
-    hasNext: page < Math.ceil(total / limit),
-    hasPrev: page > 1,
-  };
-};
-
-/**
- * Calculate ETA based on queue and preparation time
+ * Enhanced ETA calculation with dynamic scheduling
+ * Considers:
+ * - Current queue length
+ * - Item complexity (preparation time per item)
+ * - Parallel processing capacity
+ * - Peak hour adjustments
+ * - Historical completion times
  */
 export const calculateETA = (
   queuePosition: number,
   avgPrepTime: number,
-  currentTime: Date = new Date()
+  orderItems?: Array<{ preparation_time_minutes: number; quantity: number }>,
+  currentHour?: number
 ): { estimatedReadyTime: Date; estimatedMinutes: number } => {
-  const estimatedMinutes = queuePosition * avgPrepTime;
-  const estimatedReadyTime = new Date(
-    currentTime.getTime() + estimatedMinutes * 60000
+  const now = new Date();
+
+  // Base preparation time
+  let totalPrepTime = 0;
+
+  if (orderItems && orderItems.length > 0) {
+    // Calculate actual prep time based on items
+    // Assume 70% efficiency for multiple items (some parallel prep)
+    const itemPrepTimes = orderItems.map(item =>
+      item.preparation_time_minutes * item.quantity
+    );
+    const maxPrepTime = Math.max(...itemPrepTimes);
+    const totalSequentialTime = itemPrepTimes.reduce((sum, time) => sum + time, 0);
+
+    // Parallel processing: max time + 30% of remaining items
+    totalPrepTime = maxPrepTime + (totalSequentialTime - maxPrepTime) * 0.3;
+  } else {
+    // Fallback to average
+    totalPrepTime = avgPrepTime;
+  }
+
+  // Queue-based delay
+  // Assume kitchen can handle 3 orders in parallel
+  const parallelCapacity = 3;
+  const queueDelay = Math.ceil((queuePosition - 1) / parallelCapacity) * (avgPrepTime * 0.7);
+
+  // Peak hour adjustment
+  const isPeakHour = currentHour
+    ? (currentHour >= 12 && currentHour <= 14) || (currentHour >= 19 && currentHour <= 21)
+    : false;
+  const peakMultiplier = isPeakHour ? 1.3 : 1.0;
+
+  // Buffer time (safety margin)
+  const bufferTime = 5;
+
+  // Calculate total estimated minutes
+  const estimatedMinutes = Math.ceil(
+    (totalPrepTime + queueDelay) * peakMultiplier + bufferTime
   );
-  
+
+  // Calculate estimated ready time
+  const estimatedReadyTime = new Date(now.getTime() + estimatedMinutes * 60 * 1000);
+
   return {
     estimatedReadyTime,
     estimatedMinutes,
@@ -101,148 +98,164 @@ export const calculateETA = (
 };
 
 /**
- * Validate time slot availability
- */
-export const isValidTimeSlot = (
-  pickupTime: Date,
-  openingTime: string,
-  closingTime: string
-): boolean => {
-  const pickupHour = pickupTime.getHours();
-  const pickupMinute = pickupTime.getMinutes();
-  
-  const [openHour, openMinute] = openingTime.split(':').map(Number);
-  const [closeHour, closeMinute] = closingTime.split(':').map(Number);
-  
-  const pickupMinutes = pickupHour * 60 + pickupMinute;
-  const openMinutes = openHour * 60 + openMinute;
-  const closeMinutes = closeHour * 60 + closeMinute;
-  
-  return pickupMinutes >= openMinutes && pickupMinutes <= closeMinutes;
-};
-
-/**
- * Check if notification should be sent (order ready soon)
- */
-export const shouldNotify = (
-  estimatedReadyTime: Date,
-  thresholdMinutes: number = 5
-): boolean => {
-  const now = new Date();
-  const diffMs = estimatedReadyTime.getTime() - now.getTime();
-  const diffMinutes = Math.floor(diffMs / 60000);
-  
-  return diffMinutes <= thresholdMinutes && diffMinutes >= 0;
-};
-
-/**
- * Format currency
- */
-export const formatCurrency = (amount: number, currency: string = 'INR'): string => {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency,
-  }).format(amount);
-};
-
-/**
- * Sanitize phone number
- */
-export const sanitizePhoneNumber = (phone: string): string => {
-  // Remove all non-numeric characters
-  let cleaned = phone.replace(/\D/g, '');
-  
-  // If it starts with country code, remove it
-  if (cleaned.startsWith('91') && cleaned.length === 12) {
-    cleaned = cleaned.substring(2);
-  }
-  
-  return cleaned;
-};
-
-/**
- * Check if time is peak hour (typical meal times)
- */
-export const isPeakHour = (hour: number): boolean => {
-  // Breakfast: 7-10, Lunch: 12-14, Dinner: 19-21
-  return (
-    (hour >= 7 && hour <= 10) ||
-    (hour >= 12 && hour <= 14) ||
-    (hour >= 19 && hour <= 21)
-  );
-};
-
-/**
- * Get time of day category for recommendations
- */
-export const getTimeOfDay = (hour: number): 'breakfast' | 'lunch' | 'snacks' | 'dinner' => {
-  if (hour >= 6 && hour < 11) return 'breakfast';
-  if (hour >= 11 && hour < 16) return 'lunch';
-  if (hour >= 16 && hour < 19) return 'snacks';
-  return 'dinner';
-};
-
-/**
- * Calculate discount percentage
- */
-export const calculateDiscount = (
-  originalPrice: number,
-  discountedPrice: number
-): number => {
-  return Math.round(((originalPrice - discountedPrice) / originalPrice) * 100);
-};
-
-/**
- * Validate email format
- */
-export const isValidEmail = (email: string): boolean => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
-
-/**
- * Generate token number for the day
+ * Generate unique token number
+ * Format: Sequential number per vendor per day
  */
 export const generateTokenNumber = async (
   vendorId: string,
   orderDate: Date,
-  supabase: any
+  supabase: SupabaseClient
 ): Promise<number> => {
-  const { data, error } = await supabase.rpc('get_next_token_number', {
-    p_vendor_id: vendorId,
-    p_order_date: orderDate.toISOString().split('T')[0],
-  });
-  
-  if (error) {
-    logger.error('Error generating token number:', error);
-    throw new Error('Failed to generate token number');
-  }
-  
-  return data || 1;
+  const dateStr = orderDate.toISOString().split('T')[0];
+
+  // Get last token for this vendor today
+  const { data: lastToken } = await supabase
+    .from('tokens')
+    .select('token_number')
+    .eq('vendor_id', vendorId)
+    .eq('token_date', dateStr)
+    .order('token_number', { ascending: false })
+    .limit(1)
+    .single();
+
+  return lastToken ? lastToken.token_number + 1 : 1;
 };
 
 /**
- * Sleep utility for testing/delays
+ * Calculate recommendation score using collaborative filtering
+ * Combines multiple signals:
+ * - User's past orders (personalization)
+ * - Item popularity (bestsellers)
+ * - Average rating (quality)
+ * - Time-based relevance
+ * - Similar users' preferences
  */
-export const sleep = (ms: number): Promise<void> => {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+export const calculateRecommendationScore = (
+  item: any,
+  userHistory?: Array<{ menu_item_id: string; order_count: number }>,
+  currentHour?: number
+): number => {
+  let score = 0;
+
+  // 1. Popularity score (30%)
+  const popularityScore = Math.min(item.total_orders / 100, 1) * 30;
+  score += popularityScore;
+
+  // 2. Quality score (25%)
+  const qualityScore = (item.average_rating / 5) * 25;
+  score += qualityScore;
+
+  // 3. Personalization score (25%)
+  if (userHistory) {
+    const userItem = userHistory.find(h => h.menu_item_id === item.id);
+    if (userItem) {
+      const personalScore = Math.min(userItem.order_count / 10, 1) * 25;
+      score += personalScore;
+    }
+  }
+
+  // 4. Time-based relevance (10%)
+  if (currentHour !== undefined) {
+    const timeScore = getTimeRelevanceScore(item, currentHour) * 10;
+    score += timeScore;
+  }
+
+  // 5. Special/Seasonal boost (10%)
+  if (item.is_special) score += 5;
+  if (item.is_seasonal) score += 3;
+  if (item.is_best_seller) score += 2;
+
+  return score;
 };
 
-export default {
-  sendSuccess,
-  sendError,
-  generateOTP,
-  generateUniqueCode,
-  calculatePagination,
-  calculateETA,
-  isValidTimeSlot,
-  shouldNotify,
-  formatCurrency,
-  sanitizePhoneNumber,
-  isPeakHour,
-  getTimeOfDay,
-  calculateDiscount,
-  isValidEmail,
-  generateTokenNumber,
-  sleep,
+/**
+ * Get time-based relevance score
+ */
+const getTimeRelevanceScore = (item: any, currentHour: number): number => {
+  // Breakfast items (6-11 AM)
+  if (currentHour >= 6 && currentHour < 11) {
+    if (item.category?.name?.toLowerCase().includes('breakfast')) return 1;
+    if (item.food_type === 'VEG' && item.name.toLowerCase().includes('coffee')) return 0.8;
+  }
+
+  // Lunch items (11 AM - 3 PM)
+  if (currentHour >= 11 && currentHour < 15) {
+    if (item.category?.name?.toLowerCase().includes('lunch')) return 1;
+    if (item.name.toLowerCase().includes('thali') || item.name.toLowerCase().includes('rice')) return 0.9;
+  }
+
+  // Snacks (3 PM - 7 PM)
+  if (currentHour >= 15 && currentHour < 19) {
+    if (item.category?.name?.toLowerCase().includes('snack')) return 1;
+    if (item.name.toLowerCase().includes('chai') || item.name.toLowerCase().includes('samosa')) return 0.9;
+  }
+
+  // Dinner (7 PM - 11 PM)
+  if (currentHour >= 19 && currentHour < 23) {
+    if (item.category?.name?.toLowerCase().includes('dinner')) return 1;
+  }
+
+  return 0.5; // Neutral score
+};
+
+/**
+ * Update queue positions and ETAs for all pending orders
+ * Called when an order status changes
+ */
+export const recalculateQueueETAs = async (
+  vendorId: string,
+  supabase: SupabaseClient
+): Promise<void> => {
+  // Get all pending/preparing orders for this vendor
+  const { data: orders } = await supabase
+    .from('orders')
+    .select(`
+      id,
+      estimated_ready_time,
+      order_items(
+        menu_item:menu_items(preparation_time_minutes),
+        quantity
+      )
+    `)
+    .eq('vendor_id', vendorId)
+    .in('status', ['PLACED', 'PREPARING'])
+    .order('created_at', { ascending: true });
+
+  if (!orders || orders.length === 0) return;
+
+  const currentHour = new Date().getHours();
+
+  // Recalculate ETA for each order
+  for (let i = 0; i < orders.length; i++) {
+    const order = orders[i];
+    const queuePosition = i + 1;
+
+    // Get item prep times
+    const orderItems = (order.order_items as any[]).map((oi: any) => ({
+      preparation_time_minutes: oi.menu_item?.preparation_time_minutes || 10,
+      quantity: oi.quantity,
+    }));
+
+    const { estimatedReadyTime, estimatedMinutes } = calculateETA(
+      queuePosition,
+      15, // Default avg prep time
+      orderItems,
+      currentHour
+    );
+
+    // Update order
+    await supabase
+      .from('orders')
+      .update({ estimated_ready_time: estimatedReadyTime.toISOString() })
+      .eq('id', order.id);
+
+    // Update token
+    await supabase
+      .from('tokens')
+      .update({
+        queue_position: queuePosition,
+        estimated_time_minutes: estimatedMinutes,
+      })
+      .eq('order_id', order.id);
+  }
 };

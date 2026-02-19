@@ -1,56 +1,78 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '@/context/CartContext';
+import { useAuth } from '@/context/AuthContext';
 import { Header } from '@/components/food/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import {
-  ArrowLeft,
-  CreditCard,
-  Smartphone,
-  AlertCircle
-} from 'lucide-react';
+import { ArrowLeft, CreditCard, Smartphone, AlertCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { orderService } from '@/services/supabase';
 
 const CheckoutPage = () => {
   const navigate = useNavigate();
   const { items, totalAmount, clearCart } = useCart();
+  const { user } = useAuth();
   const [phone, setPhone] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
   const platformFee = 5;
   const total = totalAmount + platformFee;
 
-  const generateToken = () => Math.floor(1000 + Math.random() * 9000);
-
   const handlePlaceOrder = async () => {
     if (!phone || phone.length < 10) {
       toast({
-        title: "Enter Phone Number",
-        description: "Please enter a valid phone number",
-        variant: "destructive",
+        title: 'Enter Phone Number',
+        description: 'Please enter a valid 10-digit phone number',
+        variant: 'destructive',
       });
       return;
     }
 
+    if (!user) {
+      toast({ title: 'Not signed in', variant: 'destructive' });
+      return;
+    }
+
     setIsProcessing(true);
+    try {
+      // 1. Create order row
+      const order = await orderService.createOrder(user.id, total, phone);
 
-    // Simulate payment processing
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+      // 2. Create order items
+      await orderService.createOrderItems(
+        order.id,
+        items.map((item) => ({
+          menu_item_id: item.id,
+          menu_item_data: item,
+          quantity: item.quantity,
+          unit_price: item.price,
+        }))
+      );
 
-    const token = generateToken();
-    clearCart();
+      // 3. Clear cart
+      await clearCart();
 
-    // Navigate to order confirmation
-    navigate('/order-confirmation', {
-      state: {
-        token,
-        total,
-        items: items.length
-      }
-    });
+      // 4. Navigate to confirmation
+      navigate('/order-confirmation', {
+        state: {
+          token: order.token_number,
+          orderId: order.id,
+          total,
+          items: items.length,
+        },
+      });
+    } catch (error: any) {
+      console.error('Order placement failed:', error);
+      toast({
+        title: 'Order Failed',
+        description: error.message || 'Failed to place order. Please try again.',
+        variant: 'destructive',
+      });
+      setIsProcessing(false);
+    }
   };
 
   if (items.length === 0) {
@@ -74,14 +96,9 @@ const CheckoutPage = () => {
       <Header onCartClick={() => { }} />
 
       <main className="container mx-auto px-4 py-6 max-w-2xl">
-        {/* Back Button */}
-        <Button
-          variant="ghost"
-          className="mb-6"
-          onClick={() => navigate('/')}
-        >
+        <Button variant="ghost" className="mb-6" onClick={() => navigate('/cart')}>
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Menu
+          Back to Cart
         </Button>
 
         <h1 className="font-display font-bold text-2xl mb-6">Checkout</h1>
@@ -109,15 +126,12 @@ const CheckoutPage = () => {
           </div>
         </div>
 
-
-
         {/* Contact Info */}
         <div className="bg-card rounded-2xl border p-6 mb-6">
           <div className="flex items-center gap-2 mb-4">
             <Smartphone className="w-5 h-5 text-primary" />
             <h3 className="font-semibold">Contact Details</h3>
           </div>
-
           <div>
             <Label htmlFor="phone">Phone Number</Label>
             <Input
@@ -141,7 +155,6 @@ const CheckoutPage = () => {
             <CreditCard className="w-5 h-5 text-primary" />
             <h3 className="font-semibold">Payment Method</h3>
           </div>
-
           <RadioGroup defaultValue="online" className="space-y-3">
             <div className="flex items-center space-x-3 p-4 rounded-xl bg-muted">
               <RadioGroupItem value="online" id="online" />
@@ -151,14 +164,10 @@ const CheckoutPage = () => {
                   UPI, Cards, Net Banking
                 </span>
               </Label>
-              <div className="flex gap-1">
-                <span className="text-2xl">💳</span>
-              </div>
+              <span className="text-2xl">💳</span>
             </div>
           </RadioGroup>
         </div>
-
-
 
         {/* Place Order Button */}
         <Button
@@ -169,12 +178,10 @@ const CheckoutPage = () => {
           {isProcessing ? (
             <>
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-              Processing...
+              Placing Order...
             </>
           ) : (
-            <>
-              Pay ₹{total} & Place Order
-            </>
+            <>Pay ₹{total} &amp; Place Order</>
           )}
         </Button>
 
@@ -186,8 +193,5 @@ const CheckoutPage = () => {
   );
 };
 
-const Checkout = () => {
-  return <CheckoutPage />;
-};
-
+const Checkout = () => <CheckoutPage />;
 export default Checkout;

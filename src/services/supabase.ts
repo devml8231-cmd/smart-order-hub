@@ -254,3 +254,121 @@ export const cartService = {
             .subscribe();
     },
 };
+
+// Order helpers
+export const orderService = {
+    // Create a new order and return it
+    createOrder: async (userId: string, totalAmount: number, phone: string) => {
+        const tokenNumber = Math.floor(1000 + Math.random() * 9000);
+        const { data, error } = await supabase
+            .from('orders')
+            .insert({
+                user_id: userId,
+                token_number: tokenNumber,
+                status: 'PLACED',
+                total_amount: totalAmount,
+                phone,
+            })
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    },
+
+    // Create order items for an order
+    createOrderItems: async (orderId: string, items: Array<{
+        menu_item_id: string;
+        menu_item_data: any;
+        quantity: number;
+        unit_price: number;
+    }>) => {
+        const rows = items.map((item) => ({
+            order_id: orderId,
+            menu_item_id: item.menu_item_id,
+            menu_item_data: item.menu_item_data,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            subtotal: item.unit_price * item.quantity,
+        }));
+        const { data, error } = await supabase
+            .from('order_items')
+            .insert(rows)
+            .select();
+        if (error) throw error;
+        return data;
+    },
+
+    // Get all orders for a user (with order items)
+    getUserOrders: async (userId: string) => {
+        const { data, error } = await supabase
+            .from('orders')
+            .select(`
+                *,
+                order_items (*)
+            `)
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        return data || [];
+    },
+
+    // Get ALL orders (for admin)
+    getAllOrders: async () => {
+        const { data, error } = await supabase
+            .from('orders')
+            .select(`
+                *,
+                order_items (*)
+            `)
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        return data || [];
+    },
+
+    // Update order status (admin)
+    updateOrderStatus: async (orderId: string, status: string, estimatedReadyAt?: string) => {
+        const updatePayload: Record<string, any> = { status, updated_at: new Date().toISOString() };
+        if (estimatedReadyAt) updatePayload.estimated_ready_at = estimatedReadyAt;
+        const { data, error } = await supabase
+            .from('orders')
+            .update(updatePayload)
+            .eq('id', orderId)
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    },
+
+    // Real-time subscription for a user's orders
+    subscribeToUserOrders: (userId: string, callback: (payload: any) => void) => {
+        return supabase
+            .channel(`orders_${userId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'orders',
+                    filter: `user_id=eq.${userId}`,
+                },
+                callback
+            )
+            .subscribe();
+    },
+
+    // Real-time subscription for ALL orders (admin)
+    subscribeToAllOrders: (callback: (payload: any) => void) => {
+        return supabase
+            .channel('all_orders')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'orders',
+                },
+                callback
+            )
+            .subscribe();
+    },
+};

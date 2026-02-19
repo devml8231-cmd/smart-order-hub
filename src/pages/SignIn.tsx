@@ -140,15 +140,7 @@ const SignIn = () => {
                         </p>
                     </div>
 
-                    {/* Phone Login Link */}
-                    <div className="text-center mt-3">
-                        <p className="text-sm text-muted-foreground">
-                            Or{' '}
-                            <Link to="/login" className="text-primary hover:underline font-medium">
-                                sign in with phone
-                            </Link>
-                        </p>
-                    </div>
+                    
                 </div>
 
                 {/* Footer */}

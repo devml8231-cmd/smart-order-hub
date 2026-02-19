@@ -6,24 +6,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { 
-  ArrowLeft, 
-  Clock, 
-  CreditCard, 
+import {
+  ArrowLeft,
+  CreditCard,
   Smartphone,
-  MapPin,
-  CheckCircle2,
   AlertCircle
 } from 'lucide-react';
-import { timeSlots, idleTimeSlots } from '@/data/mockData';
-import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
-import { CartProvider } from '@/context/CartContext';
 
 const CheckoutPage = () => {
   const navigate = useNavigate();
   const { items, totalAmount, clearCart } = useCart();
-  const [selectedTime, setSelectedTime] = useState('');
   const [phone, setPhone] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -33,15 +26,6 @@ const CheckoutPage = () => {
   const generateToken = () => Math.floor(1000 + Math.random() * 9000);
 
   const handlePlaceOrder = async () => {
-    if (!selectedTime) {
-      toast({
-        title: "Select Pickup Time",
-        description: "Please select a pickup time for your order",
-        variant: "destructive",
-      });
-      return;
-    }
-
     if (!phone || phone.length < 10) {
       toast({
         title: "Enter Phone Number",
@@ -58,22 +42,21 @@ const CheckoutPage = () => {
 
     const token = generateToken();
     clearCart();
-    
+
     // Navigate to order confirmation
-    navigate('/order-confirmation', { 
-      state: { 
-        token, 
-        pickupTime: selectedTime,
+    navigate('/order-confirmation', {
+      state: {
+        token,
         total,
-        items: items.length 
-      } 
+        items: items.length
+      }
     });
   };
 
   if (items.length === 0) {
     return (
       <div className="min-h-screen bg-background">
-        <Header onCartClick={() => {}} />
+        <Header onCartClick={() => { }} />
         <div className="container mx-auto px-4 py-16 text-center">
           <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mx-auto mb-6">
             <AlertCircle className="w-10 h-10 text-muted-foreground" />
@@ -88,7 +71,7 @@ const CheckoutPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header onCartClick={() => {}} />
+      <Header onCartClick={() => { }} />
 
       <main className="container mx-auto px-4 py-6 max-w-2xl">
         {/* Back Button */}
@@ -126,37 +109,7 @@ const CheckoutPage = () => {
           </div>
         </div>
 
-        {/* Pickup Time Selection */}
-        <div className="bg-card rounded-2xl border p-6 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Clock className="w-5 h-5 text-primary" />
-            <h3 className="font-semibold">Select Pickup Time</h3>
-          </div>
-          
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-            {timeSlots.map((slot) => {
-              const isIdle = idleTimeSlots.includes(slot);
-              return (
-                <button
-                  key={slot}
-                  onClick={() => setSelectedTime(slot)}
-                  className={cn(
-                    "p-3 rounded-xl text-sm font-medium transition-all border",
-                    selectedTime === slot
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-muted hover:bg-muted/80 border-transparent",
-                    isIdle && selectedTime !== slot && "ring-2 ring-secondary/50"
-                  )}
-                >
-                  {slot}
-                  {isIdle && selectedTime !== slot && (
-                    <span className="block text-xs text-secondary mt-1">Less busy</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+
 
         {/* Contact Info */}
         <div className="bg-card rounded-2xl border p-6 mb-6">
@@ -164,7 +117,7 @@ const CheckoutPage = () => {
             <Smartphone className="w-5 h-5 text-primary" />
             <h3 className="font-semibold">Contact Details</h3>
           </div>
-          
+
           <div>
             <Label htmlFor="phone">Phone Number</Label>
             <Input
@@ -205,16 +158,7 @@ const CheckoutPage = () => {
           </RadioGroup>
         </div>
 
-        {/* Pickup Location */}
-        <div className="bg-secondary/10 rounded-2xl p-4 mb-8 flex items-start gap-3">
-          <MapPin className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-          <div>
-            <h4 className="font-semibold text-sm">Pickup Location</h4>
-            <p className="text-muted-foreground text-sm">
-              Main Canteen, Ground Floor, Near Entrance Gate
-            </p>
-          </div>
-        </div>
+
 
         {/* Place Order Button */}
         <Button
@@ -243,11 +187,7 @@ const CheckoutPage = () => {
 };
 
 const Checkout = () => {
-  return (
-    <CartProvider>
-      <CheckoutPage />
-    </CartProvider>
-  );
+  return <CheckoutPage />;
 };
 
 export default Checkout;

@@ -25,6 +25,7 @@ export interface Category {
 export interface CartItem extends MenuItem {
   quantity: number;
   notes?: string;
+  _cartItemId?: string; // Database ID from cart_items table
 }
 
 export interface Order {

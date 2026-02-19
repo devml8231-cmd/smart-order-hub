@@ -6,7 +6,6 @@ import { MenuCard } from '@/components/food/MenuCard';
 import { BestSellers } from '@/components/food/BestSellers';
 import { TodaySpecials } from '@/components/food/TodaySpecials';
 import { CartDrawer } from '@/components/food/CartDrawer';
-import { CartProvider } from '@/context/CartContext';
 import { categories, menuItems } from '@/data/mockData';
 import { Clock, Lightbulb } from 'lucide-react';
 
@@ -67,7 +66,7 @@ const HomePage = () => {
           <div>
             <h4 className="font-semibold text-sm mb-1">Skip the Rush!</h4>
             <p className="text-muted-foreground text-sm">
-              Order for pickup at <span className="font-medium text-secondary">3:00 PM - 4:00 PM</span> for 
+              Order for pickup at <span className="font-medium text-secondary">3:00 PM - 4:00 PM</span> for
               minimal wait time. Currently less crowded! 🎯
             </p>
           </div>
@@ -136,11 +135,7 @@ const HomePage = () => {
 };
 
 const Index = () => {
-  return (
-    <CartProvider>
-      <HomePage />
-    </CartProvider>
-  );
+  return <HomePage />;
 };
 
 export default Index;

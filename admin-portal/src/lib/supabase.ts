@@ -58,3 +58,82 @@ export const orderService = {
             .subscribe();
     },
 };
+
+export interface MenuItem {
+    id: string;
+    name: string;
+    description?: string;
+    price: number;
+    image_url?: string;
+    category: string;
+    is_veg: boolean;
+    is_best_seller: boolean;
+    is_today_special: boolean;
+    is_available: boolean;
+    prep_time_minutes: number;
+    created_at: string;
+}
+
+export const menuService = {
+    getAll: async (): Promise<MenuItem[]> => {
+        const { data, error } = await supabase
+            .from('menu_items')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        return (data || []) as MenuItem[];
+    },
+
+    uploadImage: async (file: File): Promise<string> => {
+        const ext = file.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error } = await supabase.storage
+            .from('menu-images')
+            .upload(fileName, file, { upsert: true });
+        if (error) throw error;
+        const { data } = supabase.storage.from('menu-images').getPublicUrl(fileName);
+        return data.publicUrl;
+    },
+
+    create: async (item: Omit<MenuItem, 'id' | 'created_at'>, imageFile?: File): Promise<MenuItem> => {
+        let image_url = item.image_url;
+        if (imageFile) {
+            image_url = await menuService.uploadImage(imageFile);
+        }
+        const { data, error } = await supabase
+            .from('menu_items')
+            .insert({ ...item, image_url })
+            .select()
+            .single();
+        if (error) throw error;
+        return data as MenuItem;
+    },
+
+    update: async (id: string, item: Partial<Omit<MenuItem, 'id' | 'created_at'>>, imageFile?: File): Promise<MenuItem> => {
+        let updates = { ...item };
+        if (imageFile) {
+            updates.image_url = await menuService.uploadImage(imageFile);
+        }
+        const { data, error } = await supabase
+            .from('menu_items')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+        if (error) throw error;
+        return data as MenuItem;
+    },
+
+    delete: async (id: string): Promise<void> => {
+        const { error } = await supabase.from('menu_items').delete().eq('id', id);
+        if (error) throw error;
+    },
+
+    toggleAvailability: async (id: string, is_available: boolean): Promise<void> => {
+        const { error } = await supabase
+            .from('menu_items')
+            .update({ is_available })
+            .eq('id', id);
+        if (error) throw error;
+    },
+};

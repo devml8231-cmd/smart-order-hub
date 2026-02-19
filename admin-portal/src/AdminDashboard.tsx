@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import {
     ShoppingBag, RefreshCw, Loader2, ChevronDown,
     BarChart3, Clock, CheckCircle2,
-    XCircle, ChefHat, Timer, Bell,
+    XCircle, ChefHat, Timer, Bell, UtensilsCrossed,
 } from 'lucide-react';
 import { cn, formatDate } from './lib/utils';
 import { orderService, Order } from './lib/supabase';
 import { useAllOrders } from './hooks/useAllOrders';
+import MenuManagement from './MenuManagement';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS = ['PLACED', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'] as const;
@@ -163,7 +164,7 @@ const AdminDashboard = () => {
     const { orders, loading, error, refetch } = useAllOrders();
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [filterStatus, setFilterStatus] = useState<string>('ALL');
-    const [activeTab, setActiveTab] = useState<'orders' | 'stats'>('orders');
+    const [activeTab, setActiveTab] = useState<'orders' | 'stats' | 'menu'>('orders');
 
     const filtered = filterStatus === 'ALL' ? orders : orders.filter((o) => o.status === filterStatus);
     const activeCount = orders.filter((o) => ['PLACED', 'PREPARING', 'READY'].includes(o.status)).length;
@@ -216,6 +217,7 @@ const AdminDashboard = () => {
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 flex gap-1">
                     {([
                         { id: 'orders' as const, label: 'Orders', icon: ShoppingBag },
+                        { id: 'menu' as const, label: 'Menu', icon: UtensilsCrossed },
                         { id: 'stats' as const, label: 'Analytics', icon: BarChart3 },
                     ]).map(({ id, label, icon: Icon }) => (
                         <button
@@ -288,6 +290,11 @@ const AdminDashboard = () => {
                             </div>
                         )}
                     </>
+                )}
+
+                {/* ── Menu Tab ── */}
+                {activeTab === 'menu' && (
+                    <MenuManagement />
                 )}
 
                 {/* ── Stats Tab ── */}

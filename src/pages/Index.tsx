@@ -6,14 +6,30 @@ import { MenuCard } from '@/components/food/MenuCard';
 import { BestSellers } from '@/components/food/BestSellers';
 import { TodaySpecials } from '@/components/food/TodaySpecials';
 import { CartDrawer } from '@/components/food/CartDrawer';
-import { categories, menuItems } from '@/data/mockData';
-import { Clock, Lightbulb } from 'lucide-react';
+import { useMenuItems } from '@/hooks/useMenu';
+import { Clock, Lightbulb, Loader2 } from 'lucide-react';
+
 
 const HomePage = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [cartOpen, setCartOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { items: menuItems, loading } = useMenuItems();
+
+  // Derive categories dynamically from the live items
+  const categories = useMemo(() => {
+    const seen = new Set<string>();
+    const cats = [{ id: 'all', name: 'All', icon: '🍽️', count: menuItems.length }];
+    menuItems.forEach((item) => {
+      if (!seen.has(item.category)) {
+        seen.add(item.category);
+        cats.push({ id: item.category, name: item.category, icon: '🍴', count: menuItems.filter(i => i.category === item.category).length });
+      }
+    });
+    return cats;
+  }, [menuItems]);
+
 
   const filteredItems = useMemo(() => {
     let items = menuItems;
@@ -35,7 +51,8 @@ const HomePage = () => {
     }
 
     return items;
-  }, [selectedCategory, searchQuery]);
+  }, [menuItems, selectedCategory, searchQuery]);
+
 
   const scrollToMenu = () => {
     menuRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -90,11 +107,17 @@ const HomePage = () => {
           />
 
           {/* Menu Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6">
-            {filteredItems.map((item) => (
-              <MenuCard key={item.id} item={item} />
-            ))}
-          </div>
+          {loading ? (
+            <div className="flex justify-center py-16">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6">
+              {filteredItems.map((item) => (
+                <MenuCard key={item.id} item={item} />
+              ))}
+            </div>
+          )}
 
           {filteredItems.length === 0 && (
             <div className="text-center py-16">

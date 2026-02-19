@@ -1,28 +1,25 @@
 import { useState, useEffect } from 'react';
-import { api } from '@/services/api';
-import { subscribeToMenuItems } from '@/services/supabase';
+import { supabase } from '@/services/supabase';
+import { MenuItem } from '@/types/food';
 
-export interface MenuItem {
-    id: string;
-    name: string;
-    description?: string;
-    image_url?: string;
-    price: number;
-    discount_price?: number;
-    food_type: 'VEG' | 'NON_VEG' | 'VEGAN' | 'UPWAS';
-    stock_quantity: number;
-    is_available: boolean;
-    is_special: boolean;
-    is_best_seller: boolean;
-    is_seasonal: boolean;
-    total_orders: number;
-    average_rating: number;
-    preparation_time_minutes: number;
-    vendor_id: string;
-    category_id?: string;
-}
+// Map DB row → MenuItem used by the frontend
+const mapRow = (row: any): MenuItem => ({
+    id: row.id,
+    name: row.name,
+    description: row.description || '',
+    price: row.price,
+    image: row.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400',
+    category: row.category || 'Other',
+    isVeg: row.is_veg ?? true,
+    isBestSeller: row.is_best_seller ?? false,
+    isTodaySpecial: row.is_today_special ?? false,
+    rating: 4.5,
+    prepTime: row.prep_time_minutes ?? 15,
+    available: row.is_available ?? true,
+    tags: [],
+});
 
-export const useMenuItems = (params?: {
+export const useMenuItems = (_params?: {
     vendor_id?: string;
     category_id?: string;
     food_type?: string;
@@ -36,11 +33,16 @@ export const useMenuItems = (params?: {
     const fetchItems = async () => {
         try {
             setLoading(true);
-            const response = await api.getMenuItems(params);
-            setItems(response.data.data.items);
+            const { data, error: err } = await supabase
+                .from('menu_items')
+                .select('*')
+                .eq('is_available', true)
+                .order('created_at', { ascending: false });
+            if (err) throw err;
+            setItems((data || []).map(mapRow));
             setError(null);
-        } catch (err: any) {
-            setError(err.response?.data?.error || 'Failed to fetch menu items');
+        } catch (e: any) {
+            setError(e.message || 'Failed to fetch menu items');
         } finally {
             setLoading(false);
         }
@@ -48,26 +50,17 @@ export const useMenuItems = (params?: {
 
     useEffect(() => {
         fetchItems();
-    }, [JSON.stringify(params)]);
 
-    // Subscribe to real-time stock updates
-    useEffect(() => {
-        if (!params?.vendor_id) return;
+        // Real-time: refresh on any menu_items change
+        const channel = supabase
+            .channel('menu_items_changes')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' }, () => {
+                fetchItems();
+            })
+            .subscribe();
 
-        const subscription = subscribeToMenuItems(params.vendor_id, (payload) => {
-            const updatedItem = payload.new;
-
-            setItems((prev) =>
-                prev.map((item) =>
-                    item.id === updatedItem.id ? { ...item, ...updatedItem } : item
-                )
-            );
-        });
-
-        return () => {
-            subscription.unsubscribe();
-        };
-    }, [params?.vendor_id]);
+        return () => { supabase.removeChannel(channel); };
+    }, []);
 
     return { items, loading, error, refetch: fetchItems };
 };
@@ -76,17 +69,18 @@ export const useSearchMenu = () => {
     const [results, setResults] = useState<MenuItem[]>([]);
     const [loading, setLoading] = useState(false);
 
-    const search = async (query: string, vendorId?: string) => {
-        if (query.length < 2) {
-            setResults([]);
-            return;
-        }
-
+    const search = async (query: string) => {
+        if (query.length < 2) { setResults([]); return; }
         try {
             setLoading(true);
-            const response = await api.searchMenuItems(query, vendorId);
-            setResults(response.data.data);
-        } catch (err) {
+            const { data } = await supabase
+                .from('menu_items')
+                .select('*')
+                .ilike('name', `%${query}%`)
+                .eq('is_available', true)
+                .limit(20);
+            setResults((data || []).map(mapRow));
+        } catch {
             setResults([]);
         } finally {
             setLoading(false);
@@ -96,35 +90,7 @@ export const useSearchMenu = () => {
     return { results, loading, search };
 };
 
-export const useRecommendations = (vendorId?: string) => {
-    const [recommendations, setRecommendations] = useState<{
-        personalized: MenuItem[];
-        best_sellers: MenuItem[];
-        today_special: MenuItem[];
-        based_on_time: MenuItem[];
-    }>({
-        personalized: [],
-        best_sellers: [],
-        today_special: [],
-        based_on_time: [],
-    });
-    const [loading, setLoading] = useState(true);
+// Re-export MenuItem for anything that imports it from this hook
+export type { MenuItem };
 
-    useEffect(() => {
-        const fetchRecommendations = async () => {
-            try {
-                setLoading(true);
-                const response = await api.getRecommendations(vendorId);
-                setRecommendations(response.data.data);
-            } catch (err) {
-                console.error('Failed to fetch recommendations:', err);
-            } finally {
-                setLoading(false);
-            }
-        };
 
-        fetchRecommendations();
-    }, [vendorId]);
-
-    return { recommendations, loading };
-};

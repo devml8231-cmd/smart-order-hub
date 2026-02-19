@@ -18,8 +18,8 @@ const CheckoutPage = () => {
   const [phone, setPhone] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const platformFee = 5;
-  const total = totalAmount + platformFee;
+  const total = totalAmount;
+
 
   const handlePlaceOrder = async () => {
     if (!phone || phone.length < 10) {
@@ -115,10 +115,6 @@ const CheckoutPage = () => {
                 <span>₹{item.price * item.quantity}</span>
               </div>
             ))}
-            <div className="border-t pt-3 flex justify-between text-sm">
-              <span className="text-muted-foreground">Platform Fee</span>
-              <span>₹{platformFee}</span>
-            </div>
             <div className="border-t pt-3 flex justify-between font-semibold">
               <span>Total</span>
               <span className="text-primary text-lg">₹{total}</span>

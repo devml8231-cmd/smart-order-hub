@@ -19,8 +19,8 @@ const Cart = () => {
     const { items, updateQuantity, removeItem, totalAmount, totalItems, clearCart, loading } = useCart();
     const { isAuthenticated } = useAuth();
 
-    const platformFee = 5;
-    const total = totalAmount + platformFee;
+    const total = totalAmount;
+
 
     const handleCheckout = () => {
         if (!isAuthenticated) {
@@ -176,10 +176,7 @@ const Cart = () => {
                             <span className="text-muted-foreground">Subtotal ({totalItems} items)</span>
                             <span>₹{totalAmount}</span>
                         </div>
-                        <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Platform Fee</span>
-                            <span>₹{platformFee}</span>
-                        </div>
+
                         <div className="border-t pt-3 flex justify-between font-semibold">
                             <span>Total Amount</span>
                             <span className="text-primary text-lg">₹{total}</span>

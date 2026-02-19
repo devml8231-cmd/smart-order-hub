@@ -63,7 +63,12 @@ const OrderCard = ({
                 {/* Left */}
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2 flex-wrap">
-                        <span className="text-4xl font-bold text-orange-500 leading-none">#{order.token_number}</span>
+                        <span className="font-bold text-2xl text-black leading-tight">
+                            {order.order_items.map(i => i.menu_item_data?.name).filter(Boolean).join(', ')}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
+                        <span className="text-sm font-semibold text-red-600">Token #{order.token_number}</span>
                         <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold', cfg.badge)}>
                             <StatusIcon className="w-3 h-3" />
                             {cfg.label}

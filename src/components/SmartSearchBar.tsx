@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, X, TrendingUp, Clock } from 'lucide-react';
+import { Search, X, Clock } from 'lucide-react';
 import { useSearchMenu } from '@/hooks/useMenu';
 import { MenuItem } from '@/types/food';
 import { cn } from '@/lib/utils';
@@ -164,7 +164,6 @@ export const SmartSearchBar = ({
         inputRef.current?.focus();
     };
 
-    const popularSearches = ['Biryani', 'Dosa', 'Chai', 'Paneer', 'Thali'];
 
     return (
         <div className={cn('relative w-full', className)}>
@@ -178,7 +177,7 @@ export const SmartSearchBar = ({
                     onChange={(e) => handleQueryChange(e.target.value)}
                     onFocus={() => {
                         if (query.length >= 2) setIsOpen(true);
-                        else if (searchHistory.length > 0 || true) setIsOpen(true);
+                        else if (searchHistory.length > 0) setIsOpen(true);
                     }}
                     placeholder={placeholder}
                     className="w-full pl-10 pr-10 py-2.5 rounded-xl border-0 bg-muted focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-sm"
@@ -285,25 +284,6 @@ export const SmartSearchBar = ({
                         </div>
                     )}
 
-                    {/* ── Popular Searches ── */}
-                    {query.length < 2 && (
-                        <div className="py-1 border-t border-border/50">
-                            <p className="px-4 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                                <TrendingUp className="w-3 h-3" /> Popular
-                            </p>
-                            <div className="px-4 py-2 flex flex-wrap gap-2">
-                                {popularSearches.map((item, index) => (
-                                    <button
-                                        key={index}
-                                        onClick={() => handleHistoryClick(item)}
-                                        className="px-3 py-1 bg-muted hover:bg-muted/70 rounded-full text-xs transition-colors"
-                                    >
-                                        {item}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                 </div>
             )}
         </div>

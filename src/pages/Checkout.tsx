@@ -6,10 +6,10 @@ import { Header } from '@/components/food/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { ArrowLeft, CreditCard, Smartphone, AlertCircle } from 'lucide-react';
+import { ArrowLeft, CreditCard, Smartphone, AlertCircle, ShieldCheck } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { orderService } from '@/services/supabase';
+import { razorpayService } from '@/services/razorpay';
 
 const CheckoutPage = () => {
   const navigate = useNavigate();
@@ -19,7 +19,6 @@ const CheckoutPage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const total = totalAmount;
-
 
   const handlePlaceOrder = async () => {
     if (!phone || phone.length < 10) {
@@ -37,15 +36,48 @@ const CheckoutPage = () => {
     }
 
     setIsProcessing(true);
+
     try {
-      // 1. Calculate dynamic wait time
+      // 1. Open Razorpay payment modal
+      let paymentResult;
+      try {
+        paymentResult = await razorpayService.initiatePayment({
+          amount: total,
+          userName: user.user_metadata?.full_name || '',
+          userEmail: user.email || '',
+          userPhone: phone,
+          description: `QuickBite order – ${items.length} item${items.length !== 1 ? 's' : ''}`,
+        });
+      } catch (paymentError: any) {
+        // User dismissed or payment failed
+        if (paymentError.message?.includes('cancelled')) {
+          toast({
+            title: 'Payment Cancelled',
+            description: 'You cancelled the payment. Your order was not placed.',
+          });
+        } else {
+          toast({
+            title: 'Payment Failed',
+            description: paymentError.message || 'Unable to process payment. Please try again.',
+            variant: 'destructive',
+          });
+        }
+        setIsProcessing(false);
+        return;
+      }
+
+      // 2. Payment succeeded – create order in database
       const waitMinutes = await orderService.calculateWaitTime(items);
       const estimatedReadyAt = new Date(Date.now() + waitMinutes * 60000);
 
-      // 2. Create order row
-      const order = await orderService.createOrder(user.id, total, phone, estimatedReadyAt);
+      const order = await orderService.createOrder(
+        user.id,
+        total,
+        phone,
+        estimatedReadyAt,
+        paymentResult.razorpay_payment_id  // pass payment ID for record
+      );
 
-      // 2. Create order items
       await orderService.createOrderItems(
         order.id,
         items.map((item) => ({
@@ -56,16 +88,21 @@ const CheckoutPage = () => {
         }))
       );
 
-      // 3. Clear cart
+      // 3. Clear cart and redirect
       await clearCart();
 
-      // 4. Navigate to confirmation
+      toast({
+        title: 'Payment Successful! 🎉',
+        description: `Payment ID: ${paymentResult.razorpay_payment_id}`,
+      });
+
       navigate('/order-confirmation', {
         state: {
           token: order.token_number,
           orderId: order.id,
           total,
           items: items.length,
+          paymentId: paymentResult.razorpay_payment_id,
         },
       });
     } catch (error: any) {
@@ -153,20 +190,22 @@ const CheckoutPage = () => {
         <div className="bg-card rounded-2xl border p-6 mb-6">
           <div className="flex items-center gap-2 mb-4">
             <CreditCard className="w-5 h-5 text-primary" />
-            <h3 className="font-semibold">Payment Method</h3>
+            <h3 className="font-semibold">Payment</h3>
           </div>
-          <RadioGroup defaultValue="online" className="space-y-3">
-            <div className="flex items-center space-x-3 p-4 rounded-xl bg-muted">
-              <RadioGroupItem value="online" id="online" />
-              <Label htmlFor="online" className="flex-1 cursor-pointer">
-                <span className="font-medium">Pay Online</span>
-                <span className="text-muted-foreground text-sm block">
-                  UPI, Cards, Net Banking
-                </span>
-              </Label>
-              <span className="text-2xl">💳</span>
+          {/* Razorpay badge */}
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800">
+            <div className="w-10 h-10 rounded-lg bg-[#072654] flex items-center justify-center shrink-0 text-white font-bold text-xs">
+              Rz
             </div>
-          </RadioGroup>
+            <div className="flex-1">
+              <p className="font-medium text-sm">Razorpay Secure Payment</p>
+              <p className="text-xs text-muted-foreground">UPI · Credit/Debit Cards · Net Banking · Wallets</p>
+            </div>
+            <ShieldCheck className="w-5 h-5 text-green-500 shrink-0" />
+          </div>
+          <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
+            🔒 Payments are encrypted and processed securely by Razorpay
+          </p>
         </div>
 
         {/* Place Order Button */}
@@ -178,10 +217,10 @@ const CheckoutPage = () => {
           {isProcessing ? (
             <>
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-              Placing Order...
+              Processing...
             </>
           ) : (
-            <>Pay ₹{total} &amp; Place Order</>
+            <>Pay ₹{total} via Razorpay</>
           )}
         </Button>
 

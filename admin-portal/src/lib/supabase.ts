@@ -5,6 +5,14 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+export interface CustomizationOption {
+    id: string;
+    menu_item_id: string;
+    name: string;
+    price: number;
+    isAvailable: boolean;
+}
+
 export interface OrderItem {
     id: string;
     order_id: string;
@@ -150,6 +158,63 @@ export const menuService = {
         if (error) throw error;
     },
 };
+
+export const customizationService = {
+    getItemOptions: async (menuItemId: string): Promise<CustomizationOption[]> => {
+        const { data, error } = await supabase
+            .from('customization_options')
+            .select('*')
+            .eq('menu_item_id', menuItemId)
+            .order('name');
+        if (error) throw error;
+        return data.map(opt => ({
+            id: opt.id,
+            menu_item_id: opt.menu_item_id,
+            name: opt.name,
+            price: Number(opt.price),
+            isAvailable: opt.is_available
+        }));
+    },
+
+    addOption: async (menuItemId: string, option: Omit<CustomizationOption, 'id' | 'menu_item_id'>) => {
+        const { data, error } = await supabase
+            .from('customization_options')
+            .insert({
+                menu_item_id: menuItemId,
+                name: option.name,
+                price: option.price,
+                is_available: option.isAvailable
+            })
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    },
+
+    updateOption: async (id: string, updates: Partial<CustomizationOption>) => {
+        const { data, error } = await supabase
+            .from('customization_options')
+            .update({
+                name: updates.name,
+                price: updates.price,
+                is_available: updates.isAvailable
+            })
+            .eq('id', id)
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    },
+
+    deleteOption: async (id: string) => {
+        const { error } = await supabase
+            .from('customization_options')
+            .delete()
+            .eq('id', id);
+        if (error) throw error;
+    }
+};
+
 export interface Chef {
     id: string;
     name: string;

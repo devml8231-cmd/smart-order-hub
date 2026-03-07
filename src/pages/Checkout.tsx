@@ -80,12 +80,20 @@ const CheckoutPage = () => {
 
       await orderService.createOrderItems(
         order.id,
-        items.map((item) => ({
-          menu_item_id: item.id,
-          menu_item_data: item,
-          quantity: item.quantity,
-          unit_price: item.price,
-        }))
+        items.map((item) => {
+          const basePrice = item.discountPercent && item.discountPercent > 0
+            ? Math.round(item.price * (1 - item.discountPercent / 100))
+            : item.price;
+          const customizationsPrice = (item.selectedCustomizations || []).reduce((s, o) => s + o.price, 0);
+          const effectiveUnitPrice = basePrice + customizationsPrice;
+
+          return {
+            menu_item_id: item.id,
+            menu_item_data: item, // full item data including selectedCustomizations
+            quantity: item.quantity,
+            unit_price: effectiveUnitPrice,
+          };
+        })
       );
 
       // 3. Clear cart and redirect
@@ -154,9 +162,12 @@ const CheckoutPage = () => {
                   {item.quantity}x {item.name}
                 </span>
                 <span>
-                  ₹{(item.discountPercent && item.discountPercent > 0
-                    ? Math.round(item.price * (1 - item.discountPercent / 100))
-                    : item.price) * item.quantity}
+                  ₹{(
+                    (item.discountPercent && item.discountPercent > 0
+                      ? Math.round(item.price * (1 - item.discountPercent / 100))
+                      : item.price) +
+                    (item.selectedCustomizations || []).reduce((s, o) => s + o.price, 0)
+                  ) * item.quantity}
                 </span>
               </div>
             ))}

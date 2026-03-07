@@ -13,11 +13,16 @@ import {
     Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useState } from 'react';
+import { CustomizationModal } from '@/components/food/CustomizationModal';
+import { CustomizationOption, CartItem } from '@/types/food';
+import { Settings2 } from 'lucide-react';
 
 const Cart = () => {
     const navigate = useNavigate();
-    const { items, updateQuantity, removeItem, totalAmount, totalItems, clearCart, loading } = useCart();
+    const { items, updateQuantity, removeItem, totalAmount, totalItems, clearCart, loading, updateCustomizations } = useCart();
     const { isAuthenticated } = useAuth();
+    const [customizeItem, setCustomizeItem] = useState<CartItem | null>(null);
 
     const total = totalAmount;
 
@@ -135,6 +140,33 @@ const Cart = () => {
                                     </Button>
                                 </div>
 
+                                {/* Customizations Summary */}
+                                {item.selectedCustomizations && item.selectedCustomizations.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                        {item.selectedCustomizations.map((opt) => (
+                                            <span
+                                                key={opt.id}
+                                                className="text-[10px] bg-muted px-2 py-0.5 rounded-full text-muted-foreground"
+                                            >
+                                                + {opt.name} (₹{opt.price})
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Customize Button */}
+                                <div className="mt-3 flex items-center justify-between">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 text-xs font-semibold gap-1.5 border-orange-200 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
+                                        onClick={() => setCustomizeItem(item)}
+                                    >
+                                        <Settings2 className="w-3 h-3" />
+                                        Customize Order
+                                    </Button>
+                                </div>
+
                                 {/* Quantity Controls & Price */}
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
@@ -231,6 +263,17 @@ const Cart = () => {
                     Review your order before proceeding to payment
                 </p>
             </main>
+
+            {/* Customization Modal */}
+            {customizeItem && (
+                <CustomizationModal
+                    item={customizeItem}
+                    onClose={() => setCustomizeItem(null)}
+                    onSave={async (options) => {
+                        await updateCustomizations(customizeItem.id, options);
+                    }}
+                />
+            )}
         </div>
     );
 };

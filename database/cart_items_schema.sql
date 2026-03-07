@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS cart_items (
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   menu_item_id TEXT NOT NULL,
   menu_item_data JSONB NOT NULL, -- Store full menu item details
+  selected_customizations JSONB DEFAULT '[]'::JSONB, -- Store list of {id, name, price}
   quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
   notes TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

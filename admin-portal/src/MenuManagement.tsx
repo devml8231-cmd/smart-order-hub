@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Pencil, Trash2, Loader2, ImagePlus, ToggleLeft, ToggleRight, X, Search, Tag } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, ImagePlus, ToggleLeft, ToggleRight, X, Search, Tag, Settings2 } from 'lucide-react';
 import { menuService, MenuItem } from './lib/supabase';
 import { cn } from './lib/utils';
+import { CustomizationManager } from './components/CustomizationManager';
 
 // ─── Form State ───────────────────────────────────────────────────────────────
 const EMPTY_FORM = {
@@ -35,43 +36,43 @@ const ItemCard = ({
     toggling: boolean;
 }) => (
     <div className={cn(
-        'bg-white rounded-2xl border shadow-sm overflow-hidden transition-all',
+        'bg-white rounded-3xl border shadow-md overflow-hidden transition-all hover:shadow-xl hover:-translate-y-1',
         !item.is_available && 'opacity-60'
     )}>
         {/* Image */}
-        <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden">
+        <div className="relative aspect-video bg-gray-100 overflow-hidden">
             {item.image_url ? (
                 <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
             ) : (
-                <div className="w-full h-full flex items-center justify-center text-4xl">🍽️</div>
+                <div className="w-full h-full flex items-center justify-center text-5xl">🍽️</div>
             )}
             {/* Veg/Non-veg dot */}
             <div className={cn(
-                'absolute top-2 right-2 w-5 h-5 border-2 rounded flex items-center justify-center bg-white',
+                'absolute top-3 right-3 w-6 h-6 border-2 rounded-md flex items-center justify-center bg-white shadow-sm',
                 item.is_veg ? 'border-green-500' : 'border-red-500'
             )}>
-                <div className={cn('w-2.5 h-2.5 rounded-full', item.is_veg ? 'bg-green-500' : 'bg-red-500')} />
+                <div className={cn('w-3 h-3 rounded-full', item.is_veg ? 'bg-green-500' : 'bg-red-500')} />
             </div>
             {item.is_best_seller && (
-                <span className="absolute top-2 left-2 bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">🔥 Bestseller</span>
+                <span className="absolute top-3 left-3 bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">🔥 Bestseller</span>
             )}
             {item.is_today_special && (
                 <span className={cn(
-                    'absolute text-white text-xs font-bold px-2 py-0.5 rounded-full bg-purple-500',
-                    item.is_best_seller ? 'top-8 left-2 mt-1' : 'top-2 left-2'
+                    'absolute text-white text-xs font-bold px-3 py-1 rounded-full bg-purple-500 shadow-sm',
+                    item.is_best_seller ? 'top-10 left-3 mt-1' : 'top-3 left-3'
                 )}>✨ Special</span>
             )}
         </div>
 
         {/* Content */}
-        <div className="p-4">
-            <div className="flex items-start justify-between gap-2 mb-1">
-                <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-1">{item.name}</h3>
+        <div className="p-6">
+            <div className="flex items-start justify-between gap-4 mb-2">
+                <h3 className="font-bold text-gray-900 text-xl leading-snug line-clamp-1">{item.name}</h3>
                 <div className="flex flex-col items-end shrink-0">
-                    <span className="text-orange-600 font-bold text-base">
+                    <span className="text-orange-600 font-extrabold text-xl">
                         {item.discount_percent > 0 ? (
                             <>
-                                <span className="line-through text-gray-400 text-sm mr-2">₹{item.price}</span>
+                                <span className="line-through text-gray-400 text-sm mr-2 font-normal">₹{item.price}</span>
                                 ₹{(item.price * (1 - item.discount_percent / 100)).toFixed(0)}
                             </>
                         ) : (
@@ -79,65 +80,76 @@ const ItemCard = ({
                         )}
                     </span>
                     {item.discount_percent > 0 && (
-                        <span className="text-green-600 font-extrabold text-sm uppercase">
+                        <span className="text-green-600 font-black text-xs uppercase tracking-wider bg-green-50 px-2 py-0.5 rounded mt-1">
                             {item.discount_percent}% off
                         </span>
                     )}
                 </div>
             </div>
             {item.description && (
-                <p className="text-gray-500 text-xs line-clamp-2 mb-2">{item.description}</p>
+                <p className="text-gray-500 text-sm line-clamp-2 mb-4 leading-relaxed">{item.description}</p>
             )}
-            <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-3">
-                <span className="bg-gray-100 px-2 py-0.5 rounded-full">{item.category}</span>
-                <span className="bg-gray-100 px-2 py-0.5 rounded-full">⏱ {item.prep_time_minutes} min</span>
+            <div className="flex items-center gap-2 text-xs text-gray-500 mb-5">
+                <span className="bg-gray-100 px-3 py-1 rounded-full font-medium">{item.category}</span>
+                <span className="bg-gray-100 px-3 py-1 rounded-full font-medium">⏱ {item.prep_time_minutes} min</span>
             </div>
 
             {/* Actions */}
-            <div className="flex items-center justify-between gap-2 pt-3 border-t">
-                {/* Availability toggle */}
-                <button
-                    onClick={() => onToggle(item.id, !item.is_available)}
-                    disabled={toggling}
-                    className="flex items-center gap-1.5 text-xs font-semibold transition-colors"
-                >
-                    {item.is_available
-                        ? <ToggleRight className="w-5 h-5 text-green-500" />
-                        : <ToggleLeft className="w-5 h-5 text-gray-400" />
-                    }
-                    <span className={item.is_available ? 'text-green-600' : 'text-gray-400'}>
-                        {item.is_available ? 'Available' : 'Unavailable'}
-                    </span>
-                </button>
-
-                <button
-                    onClick={() => onDiscount(item)}
-                    className={cn(
-                        "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all flex items-center gap-1 border",
-                        item.discount_percent > 0
-                            ? "bg-green-50 text-green-600 border-green-200 hover:bg-green-100"
-                            : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
-                    )}
-                >
-                    <Tag className="w-3 h-3" />
-                    {item.discount_percent > 0 ? 'Edit Discount' : 'Add Discount'}
-                </button>
-
-                <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-5 border-t">
+                <div className="flex gap-2 w-full mb-2">
                     <button
-                        onClick={() => onEdit(item)}
-                        className="p-1.5 rounded-lg hover:bg-orange-50 text-orange-500 transition-colors"
-                        title="Edit Item"
+                        onClick={() => onDiscount(item)}
+                        className={cn(
+                            "flex-1 px-4 py-2.5 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 border shadow-sm",
+                            item.discount_percent > 0
+                                ? "bg-green-50 text-green-600 border-green-200 hover:bg-green-100"
+                                : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                        )}
                     >
-                        <Pencil className="w-4 h-4" />
+                        <Tag className="w-4 h-4" />
+                        {item.discount_percent > 0 ? 'Edit' : 'Discount'}
                     </button>
+
                     <button
-                        onClick={() => onDelete(item.id)}
-                        className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors"
-                        title="Delete Item"
+                        onClick={() => (window as any).openCustomizer(item)}
+                        className="flex-1 px-4 py-2.5 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-2 border bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100 shadow-sm"
                     >
-                        <Trash2 className="w-4 h-4" />
+                        <Settings2 className="w-4 h-4" />
+                        Customization
                     </button>
+                </div>
+
+                <div className="flex items-center justify-between w-full">
+                    <button
+                        onClick={() => onToggle(item.id, !item.is_available)}
+                        disabled={toggling}
+                        className="flex items-center gap-2 text-sm font-bold transition-colors"
+                    >
+                        {item.is_available
+                            ? <ToggleRight className="w-7 h-7 text-green-500" />
+                            : <ToggleLeft className="w-7 h-7 text-gray-400" />
+                        }
+                        <span className={item.is_available ? 'text-green-600' : 'text-gray-500'}>
+                            {item.is_available ? 'Available' : 'Unavailable'}
+                        </span>
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => onEdit(item)}
+                            className="p-2.5 rounded-xl hover:bg-orange-50 text-orange-500 border border-transparent hover:border-orange-200 transition-all"
+                            title="Edit Item"
+                        >
+                            <Pencil className="w-5 h-5" />
+                        </button>
+                        <button
+                            onClick={() => onDelete(item.id)}
+                            className="p-2.5 rounded-xl hover:bg-red-50 text-red-500 border border-transparent hover:border-red-200 transition-all"
+                            title="Delete Item"
+                        >
+                            <Trash2 className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -437,6 +449,13 @@ const MenuManagement = () => {
     const [togglingId, setTogglingId] = useState<string | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
     const [search, setSearch] = useState('');
+    const [customizeItem, setCustomizeItem] = useState<MenuItem | null>(null);
+
+    // Expose openCustomizer globally for ItemCard (quick hack for component structure)
+    useEffect(() => {
+        (window as any).openCustomizer = (item: MenuItem) => setCustomizeItem(item);
+        return () => { delete (window as any).openCustomizer; };
+    }, []);
 
     const load = async () => {
         try {
@@ -582,7 +601,7 @@ const MenuManagement = () => {
                     )}
                 </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
                     {filtered.map((item) => (
                         <ItemCard
                             key={item.id}
@@ -640,6 +659,14 @@ const MenuManagement = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Customization Manager */}
+            {customizeItem && (
+                <CustomizationManager
+                    item={customizeItem}
+                    onClose={() => setCustomizeItem(null)}
+                />
             )}
         </div>
     );

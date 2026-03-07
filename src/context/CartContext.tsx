@@ -13,6 +13,7 @@ interface CartContextType {
   totalItems: number;
   totalAmount: number;
   loading: boolean;
+  updateCustomizations: (itemId: string, customizations: CustomizationOption[]) => Promise<void>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -214,11 +215,45 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
   const totalAmount = items.reduce((sum, item) => {
-    const price = item.discountPercent && item.discountPercent > 0
+    const basePrice = item.discountPercent && item.discountPercent > 0
       ? Math.round(item.price * (1 - item.discountPercent / 100))
       : item.price;
-    return sum + price * item.quantity;
+
+    const customizationsPrice = (item.selectedCustomizations || []).reduce((s, o) => s + o.price, 0);
+    const finalPrice = basePrice + customizationsPrice;
+
+    return sum + finalPrice * item.quantity;
   }, 0);
+
+  const updateCustomizations = useCallback(async (itemId: string, selectedCustomizations: CustomizationOption[]) => {
+    if (!isAuthenticated || !user) return;
+
+    try {
+      const cartItem = items.find(i => i.id === itemId);
+      if (!cartItem || !cartItem._cartItemId) return;
+
+      await cartService.updateCartItemCustomizations(cartItem._cartItemId, selectedCustomizations);
+
+      // Update local state
+      setItems(prev => prev.map(i =>
+        i.id === itemId
+          ? { ...i, selectedCustomizations }
+          : i
+      ));
+
+      toast({
+        title: "Cart Updated",
+        description: "Customizations saved successfully",
+      });
+    } catch (error) {
+      console.error('Error updating customizations:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update customizations",
+        variant: "destructive",
+      });
+    }
+  }, [isAuthenticated, user, items]);
 
   return (
     <CartContext.Provider
@@ -231,6 +266,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         totalItems,
         totalAmount,
         loading,
+        updateCustomizations,
       }}
     >
       {children}

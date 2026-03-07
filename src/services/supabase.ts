@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { CustomizationOption } from '@/types/food';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -71,6 +72,26 @@ export const subscribeToSurplusFood = (callback: (payload: any) => void) => {
             callback
         )
         .subscribe();
+};
+
+// Menu Item Customization helpers
+export const menuCustomizationService = {
+    getCustomizations: async (menuItemId: string): Promise<CustomizationOption[]> => {
+        const { data, error } = await supabase
+            .from('customization_options')
+            .select('*')
+            .eq('menu_item_id', menuItemId)
+            .eq('is_available', true)
+            .order('name');
+
+        if (error) throw error;
+        return (data || []).map(opt => ({
+            id: opt.id,
+            name: opt.name,
+            price: Number(opt.price),
+            isAvailable: opt.is_available
+        }));
+    }
 };
 
 // Authentication helpers
@@ -159,14 +180,15 @@ export const cartService = {
     },
 
     // Add item to cart
-    addCartItem: async (userId: string, menuItem: any, quantity: number = 1, notes?: string) => {
-        // Check if item already exists
+    addCartItem: async (userId: string, menuItem: any, quantity: number = 1, notes?: string, selectedCustomizations: any[] = []) => {
+        // Check if item already exists with the SAME customizations
         const { data: existing } = await supabase
             .from('cart_items')
             .select('*')
             .eq('user_id', userId)
             .eq('menu_item_id', menuItem.id)
-            .single();
+            .eq('selected_customizations', JSON.stringify(selectedCustomizations)) // This is a bit naive for JSONB matching but works for simple arrays
+            .maybeSingle();
 
         if (existing) {
             // Update quantity if item exists
@@ -190,6 +212,7 @@ export const cartService = {
                     user_id: userId,
                     menu_item_id: menuItem.id,
                     menu_item_data: menuItem,
+                    selected_customizations: selectedCustomizations,
                     quantity,
                     notes
                 })
@@ -199,6 +222,22 @@ export const cartService = {
             if (error) throw error;
             return data;
         }
+    },
+
+    // Update cart item customizations
+    updateCartItemCustomizations: async (cartItemId: string, selectedCustomizations: any[]) => {
+        const { data, error } = await supabase
+            .from('cart_items')
+            .update({
+                selected_customizations: selectedCustomizations,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', cartItemId)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
     },
 
     // Update cart item quantity

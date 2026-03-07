@@ -1,19 +1,24 @@
+export interface CustomizationOption {
+  id: string;
+  name: string;
+  price: number;
+  isAvailable: boolean;
+}
+
 export interface MenuItem {
   id: string;
   name: string;
   description: string;
   price: number;
-  image: string;
+  image_url: string;
   category: string;
-  isVeg: boolean;
-  isBestSeller?: boolean;
-  isTodaySpecial?: boolean;
+  is_available: boolean;
+  discount_percent: number;
+  customizationOptions?: CustomizationOption[];
   rating: number;        // legacy static field kept for compatibility
   avgRating?: number;    // live average from food_ratings table
   ratingCount?: number;  // number of actual reviews
   prepTime: number; // in minutes
-  available: boolean;
-  discountPercent?: number;
   customizable?: boolean;
   tags?: string[];
 }
@@ -28,6 +33,7 @@ export interface Category {
 export interface CartItem extends MenuItem {
   quantity: number;
   notes?: string;
+  selectedCustomizations?: CustomizationOption[];
   _cartItemId?: string; // Database ID from cart_items table
 }
 

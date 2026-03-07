@@ -72,8 +72,8 @@ export const MoodRecommendations = ({ allItems, onSelectItem }: MoodRecommendati
         // Sort by rating and popularity
         return recommendations
             .sort((a, b) => {
-                const scoreA = a.average_rating * 0.5 + (a.total_orders / 100) * 0.5;
-                const scoreB = b.average_rating * 0.5 + (b.total_orders / 100) * 0.5;
+                const scoreA = (a.avgRating || 0) * 0.5 + (a.ratingCount || 0) * 0.5; // used ratingCount as proxy for total_orders if not available
+                const scoreB = (b.avgRating || 0) * 0.5 + (b.ratingCount || 0) * 0.5;
                 return scoreB - scoreA;
             })
             .slice(0, 6);
@@ -131,9 +131,9 @@ export const MoodRecommendations = ({ allItems, onSelectItem }: MoodRecommendati
                                     onClick={() => onSelectItem?.(item)}
                                     className="bg-card border border-border rounded-xl p-3 hover:border-primary/50 transition-all text-left group"
                                 >
-                                    {item.image_url ? (
+                                    {item.image ? (
                                         <img
-                                            src={item.image_url}
+                                            src={item.image}
                                             alt={item.name}
                                             className="w-full h-32 object-cover rounded-lg mb-3 group-hover:scale-105 transition-transform"
                                         />
@@ -145,20 +145,30 @@ export const MoodRecommendations = ({ allItems, onSelectItem }: MoodRecommendati
 
                                     <h5 className="font-medium mb-1 line-clamp-1">{item.name}</h5>
 
-                                    <div className="flex items-center justify-between">
-                                        <span className="font-semibold text-primary">
-                                            ₹{item.discount_price || item.price}
-                                        </span>
-                                        {item.average_rating > 0 && (
-                                            <span className="text-xs text-muted-foreground">
-                                                ⭐ {item.average_rating.toFixed(1)}
+                                    <div className="flex flex-col gap-0.5 mb-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-bold text-primary">
+                                                ₹{item.discountPercent && item.discountPercent > 0
+                                                    ? Math.round(item.price * (1 - item.discountPercent / 100))
+                                                    : item.price}
                                             </span>
+                                            {(item.avgRating || 0) > 0 && (
+                                                <span className="text-[10px] text-muted-foreground font-medium">
+                                                    ⭐ {(item.avgRating || 0).toFixed(1)}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {item.discountPercent && item.discountPercent > 0 && (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] text-muted-foreground line-through">₹{item.price}</span>
+                                                <span className="text-green-600 font-black text-xs uppercase">{item.discountPercent}% off</span>
+                                            </div>
                                         )}
                                     </div>
 
-                                    {item.is_best_seller && (
-                                        <span className="inline-block mt-2 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                                            Best Seller
+                                    {item.isBestSeller && (
+                                        <span className="inline-block text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">
+                                            🔥 BEST SELLER
                                         </span>
                                     )}
                                 </button>

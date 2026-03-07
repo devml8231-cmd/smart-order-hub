@@ -83,6 +83,7 @@ export interface MenuItem {
     is_today_special: boolean;
     is_available: boolean;
     prep_time_minutes: number;
+    discount_percent: number;
     created_at: string;
 }
 

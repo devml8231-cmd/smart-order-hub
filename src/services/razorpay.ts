@@ -56,7 +56,7 @@ export const razorpayService = {
             // 2. Create Razorpay order via backend
             let rzpOrder: { id: string; amount: number; currency: string };
             try {
-                const res = await fetch(`${BACKEND_URL}/api/payment/create-order`, {
+                const res = await fetch(`http://localhost:3000/api/payment/create-order`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

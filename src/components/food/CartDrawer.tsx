@@ -55,8 +55,17 @@ export const CartDrawer = ({ open, onClose }: CartDrawerProps) => {
                   />
                   <div className="flex-1 min-w-0">
                     <h4 className="font-medium text-sm line-clamp-1">{item.name}</h4>
-                    <p className="text-primary font-semibold mt-1">₹{item.price}</p>
-                    
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-primary font-semibold">
+                        ₹{item.discountPercent && item.discountPercent > 0
+                          ? Math.round(item.price * (1 - item.discountPercent / 100))
+                          : item.price}
+                      </p>
+                      {item.discountPercent && item.discountPercent > 0 && (
+                        <p className="text-xs text-muted-foreground line-through">₹{item.price}</p>
+                      )}
+                    </div>
+
                     {/* Quantity Controls */}
                     <div className="flex items-center gap-2 mt-2">
                       <Button
@@ -96,7 +105,7 @@ export const CartDrawer = ({ open, onClose }: CartDrawerProps) => {
                 <span className="text-muted-foreground">Subtotal</span>
                 <span className="font-display font-bold text-xl">₹{totalAmount}</span>
               </div>
-              
+
               <Button
                 className="w-full h-12 text-base font-semibold bg-primary hover:bg-primary/90"
                 onClick={handleCheckout}
@@ -104,7 +113,7 @@ export const CartDrawer = ({ open, onClose }: CartDrawerProps) => {
                 Proceed to Checkout
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
-              
+
               <Button
                 variant="ghost"
                 className="w-full text-muted-foreground"

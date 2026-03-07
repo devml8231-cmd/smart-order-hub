@@ -13,6 +13,7 @@ export interface MenuItem {
   ratingCount?: number;  // number of actual reviews
   prepTime: number; // in minutes
   available: boolean;
+  discountPercent?: number;
   customizable?: boolean;
   tags?: string[];
 }

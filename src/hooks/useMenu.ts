@@ -18,6 +18,7 @@ const mapRow = (row: any): MenuItem => ({
     ratingCount: row.rating_count ?? 0,
     prepTime: row.prep_time_minutes ?? 15,
     available: row.is_available ?? true,
+    discountPercent: row.discount_percent ?? 0,
     tags: [],
 });
 

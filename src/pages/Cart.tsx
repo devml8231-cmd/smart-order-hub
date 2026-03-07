@@ -157,10 +157,32 @@ const Cart = () => {
                                         </Button>
                                     </div>
                                     <div className="text-right">
-                                        <p className="font-display font-bold text-lg">₹{item.price * item.quantity}</p>
-                                        {item.quantity > 1 && (
-                                            <p className="text-xs text-muted-foreground">₹{item.price} each</p>
-                                        )}
+                                        <div className="flex flex-col items-end">
+                                            <p className="font-display font-bold text-lg text-primary">
+                                                ₹{item.discountPercent && item.discountPercent > 0
+                                                    ? Math.round(item.price * (1 - item.discountPercent / 100)) * item.quantity
+                                                    : item.price * item.quantity}
+                                            </p>
+                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                {item.discountPercent && item.discountPercent > 0 && (
+                                                    <>
+                                                        <span className="text-xs text-muted-foreground line-through">
+                                                            ₹{item.price * item.quantity}
+                                                        </span>
+                                                        <span className="text-[10px] font-black text-green-600 uppercase italic leading-none">
+                                                            {item.discountPercent}% OFF
+                                                        </span>
+                                                    </>
+                                                )}
+                                            </div>
+                                            {item.quantity > 1 && (
+                                                <p className="text-[10px] text-muted-foreground mt-1 text-nowrap">
+                                                    ₹{item.discountPercent && item.discountPercent > 0
+                                                        ? Math.round(item.price * (1 - item.discountPercent / 100))
+                                                        : item.price} each
+                                                </p>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>

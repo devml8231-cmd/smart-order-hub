@@ -58,9 +58,9 @@ const Favorites = () => {
                             >
                                 {/* Image */}
                                 <div className="relative aspect-video">
-                                    {item.image_url ? (
+                                    {item.image ? (
                                         <img
-                                            src={item.image_url}
+                                            src={item.image}
                                             alt={item.name}
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                                         />
@@ -76,15 +76,15 @@ const Favorites = () => {
                                     </div>
 
                                     {/* Badges */}
-                                    <div className="absolute bottom-2 left-2 flex gap-2">
-                                        {item.is_best_seller && (
-                                            <span className="px-2 py-1 bg-primary/90 text-primary-foreground text-xs rounded-full backdrop-blur-sm">
-                                                Best Seller
+                                    <div className="absolute bottom-2 left-2 flex flex-col gap-1 items-start">
+                                        {item.isBestSeller && (
+                                            <span className="px-2 py-0.5 bg-primary/90 text-primary-foreground text-[10px] font-bold rounded-full backdrop-blur-sm">
+                                                🔥 Best Seller
                                             </span>
                                         )}
-                                        {item.is_special && (
-                                            <span className="px-2 py-1 bg-golden-amber/90 text-white text-xs rounded-full backdrop-blur-sm">
-                                                Special
+                                        {item.isTodaySpecial && (
+                                            <span className="px-2 py-0.5 bg-golden-amber/90 text-white text-[10px] font-bold rounded-full backdrop-blur-sm">
+                                                ✨ Special
                                             </span>
                                         )}
                                     </div>
@@ -99,26 +99,30 @@ const Favorites = () => {
                                         </p>
                                     )}
 
-                                    {/* Price & Rating */}
                                     <div className="flex items-center justify-between mb-3">
-                                        <div>
-                                            {item.discount_price ? (
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-lg text-primary">
-                                                        ₹{item.discount_price}
-                                                    </span>
+                                        <div className="flex flex-col">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-bold text-lg text-primary">
+                                                    ₹{item.discountPercent && item.discountPercent > 0
+                                                        ? Math.round(item.price * (1 - item.discountPercent / 100))
+                                                        : item.price}
+                                                </span>
+                                                {item.discountPercent && item.discountPercent > 0 && (
                                                     <span className="text-sm text-muted-foreground line-through">
                                                         ₹{item.price}
                                                     </span>
-                                                </div>
-                                            ) : (
-                                                <span className="font-bold text-lg text-primary">₹{item.price}</span>
+                                                )}
+                                            </div>
+                                            {item.discountPercent && item.discountPercent > 0 && (
+                                                <span className="text-green-600 font-black text-xs leading-none mt-0.5">
+                                                    {item.discountPercent}% off
+                                                </span>
                                             )}
                                         </div>
-                                        {item.average_rating > 0 && (
+                                        {item.avgRating && item.avgRating > 0 && (
                                             <div className="flex items-center gap-1 text-sm">
                                                 <span>⭐</span>
-                                                <span className="font-medium">{item.average_rating.toFixed(1)}</span>
+                                                <span className="font-medium">{item.avgRating.toFixed(1)}</span>
                                             </div>
                                         )}
                                     </div>
@@ -126,13 +130,13 @@ const Favorites = () => {
                                     {/* Add to Cart Button */}
                                     <Button
                                         className="w-full"
-                                        disabled={!item.is_available}
+                                        disabled={!item.available}
                                         onClick={() => {
-                                            // Add to cart logic
+                                            // Add to cart handled via navigation for simplicity in Favorites page
                                             navigate('/');
                                         }}
                                     >
-                                        {item.is_available ? (
+                                        {item.available ? (
                                             <>
                                                 <ShoppingCart className="w-4 h-4 mr-2" />
                                                 Add to Cart

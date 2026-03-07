@@ -233,11 +233,29 @@ export const MenuCard = ({ item }: MenuCardProps) => {
 
         {/* Price and Add Button */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="font-display font-bold text-xl text-card-foreground">
-              ₹{item.price}
-            </span>
-            <span className="flex items-center text-xs text-muted-foreground">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              {item.discountPercent !== undefined && item.discountPercent > 0 ? (
+                <>
+                  <span className="font-display font-bold text-xl text-card-foreground">
+                    ₹{(item.price * (1 - item.discountPercent / 100)).toFixed(0)}
+                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-muted-foreground line-through">
+                      ₹{item.price}
+                    </span>
+                    <span className="text-green-600 font-black text-base leading-none mt-1">
+                      {item.discountPercent}% off
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <span className="font-display font-bold text-xl text-card-foreground">
+                  ₹{item.price}
+                </span>
+              )}
+            </div>
+            <span className="flex items-center text-[10px] text-muted-foreground mt-0.5">
               <Clock className="w-3 h-3 mr-1" />
               {item.prepTime} min
             </span>

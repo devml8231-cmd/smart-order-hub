@@ -10,6 +10,7 @@ create table if not exists menu_items (
   is_today_special boolean default false,
   is_available boolean default true,
   prep_time_minutes int default 15,
+  discount_percent numeric default 0,
   created_at timestamptz default now()
 );
 alter table menu_items enable row level security;

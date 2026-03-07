@@ -70,7 +70,7 @@ export const SmartSearchBar = ({
         if (menuItems) return; // skip if using local filtering
         const debounce = setTimeout(() => {
             if (query.length >= 2) {
-                dbSearch(query, vendorId);
+                dbSearch(query);
                 setIsOpen(true);
             } else {
                 setIsOpen(false);
@@ -236,17 +236,24 @@ export const SmartSearchBar = ({
                                             <Highlighted text={item.name} query={query} />
                                         </p>
                                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                            <span>₹{item.price}</span>
+                                            <span className="text-primary font-bold">
+                                                ₹{item.discountPercent && item.discountPercent > 0
+                                                    ? Math.round(item.price * (1 - item.discountPercent / 100))
+                                                    : item.price}
+                                            </span>
+                                            {item.discountPercent && item.discountPercent > 0 && (
+                                                <span className="text-green-600 font-extrabold">{item.discountPercent}% off</span>
+                                            )}
                                             <span>·</span>
                                             <span>{item.category}</span>
                                             {!item.available && (
-                                                <span className="text-destructive">Out of stock</span>
+                                                <span className="text-destructive font-medium">Out of stock</span>
                                             )}
                                         </div>
                                     </div>
                                     {item.isBestSeller && (
-                                        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full shrink-0">
-                                            🔥 Best Seller
+                                        <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full shrink-0 font-bold">
+                                            🔥 BEST
                                         </span>
                                     )}
                                 </button>

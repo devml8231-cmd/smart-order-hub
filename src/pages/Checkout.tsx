@@ -153,7 +153,11 @@ const CheckoutPage = () => {
                 <span className="text-muted-foreground">
                   {item.quantity}x {item.name}
                 </span>
-                <span>₹{item.price * item.quantity}</span>
+                <span>
+                  ₹{(item.discountPercent && item.discountPercent > 0
+                    ? Math.round(item.price * (1 - item.discountPercent / 100))
+                    : item.price) * item.quantity}
+                </span>
               </div>
             ))}
             <div className="border-t pt-3 flex justify-between font-semibold">

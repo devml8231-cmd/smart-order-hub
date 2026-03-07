@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Pencil, Trash2, Loader2, ImagePlus, ToggleLeft, ToggleRight, X, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, ImagePlus, ToggleLeft, ToggleRight, X, Search, Tag } from 'lucide-react';
 import { menuService, MenuItem } from './lib/supabase';
 import { cn } from './lib/utils';
 
@@ -24,12 +24,14 @@ const ItemCard = ({
     onEdit,
     onDelete,
     onToggle,
+    onDiscount,
     toggling,
 }: {
     item: MenuItem;
     onEdit: (item: MenuItem) => void;
     onDelete: (id: string) => void;
     onToggle: (id: string, val: boolean) => void;
+    onDiscount: (item: MenuItem) => void;
     toggling: boolean;
 }) => (
     <div className={cn(
@@ -65,7 +67,23 @@ const ItemCard = ({
         <div className="p-4">
             <div className="flex items-start justify-between gap-2 mb-1">
                 <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-1">{item.name}</h3>
-                <span className="text-orange-600 font-bold text-base shrink-0">₹{item.price}</span>
+                <div className="flex flex-col items-end shrink-0">
+                    <span className="text-orange-600 font-bold text-base">
+                        {item.discount_percent > 0 ? (
+                            <>
+                                <span className="line-through text-gray-400 text-sm mr-2">₹{item.price}</span>
+                                ₹{(item.price * (1 - item.discount_percent / 100)).toFixed(0)}
+                            </>
+                        ) : (
+                            `₹${item.price}`
+                        )}
+                    </span>
+                    {item.discount_percent > 0 && (
+                        <span className="text-green-600 font-extrabold text-sm uppercase">
+                            {item.discount_percent}% off
+                        </span>
+                    )}
+                </div>
             </div>
             {item.description && (
                 <p className="text-gray-500 text-xs line-clamp-2 mb-2">{item.description}</p>
@@ -92,16 +110,31 @@ const ItemCard = ({
                     </span>
                 </button>
 
+                <button
+                    onClick={() => onDiscount(item)}
+                    className={cn(
+                        "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all flex items-center gap-1 border",
+                        item.discount_percent > 0
+                            ? "bg-green-50 text-green-600 border-green-200 hover:bg-green-100"
+                            : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                    )}
+                >
+                    <Tag className="w-3 h-3" />
+                    {item.discount_percent > 0 ? 'Edit Discount' : 'Add Discount'}
+                </button>
+
                 <div className="flex items-center gap-1">
                     <button
                         onClick={() => onEdit(item)}
                         className="p-1.5 rounded-lg hover:bg-orange-50 text-orange-500 transition-colors"
+                        title="Edit Item"
                     >
                         <Pencil className="w-4 h-4" />
                     </button>
                     <button
                         onClick={() => onDelete(item.id)}
                         className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors"
+                        title="Delete Item"
                     >
                         <Trash2 className="w-4 h-4" />
                     </button>
@@ -237,6 +270,8 @@ const ItemModal = ({
                         </div>
                     </div>
 
+
+
                     {/* Category */}
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-1.5">Category</label>
@@ -300,12 +335,104 @@ const ItemModal = ({
     );
 };
 
+// ─── Discount Modal ───────────────────────────────────────────────────────────
+const DiscountModal = ({
+    item,
+    onClose,
+    onSave,
+    saving,
+}: {
+    item: MenuItem;
+    onClose: () => void;
+    onSave: (discount: number) => Promise<void>;
+    saving: boolean;
+}) => {
+    const [discount, setDiscount] = useState(String(item.discount_percent || '0'));
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="flex items-center justify-between px-6 py-4 border-b bg-white">
+                    <h2 className="font-bold text-lg text-gray-900">Manage Discount</h2>
+                    <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                        <X className="w-5 h-5 text-gray-500" />
+                    </button>
+                </div>
+
+                <div className="p-6 space-y-4 text-center">
+                    <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-2 text-red-500">
+                        <Tag className="w-8 h-8" />
+                    </div>
+
+                    <h3 className="font-bold text-gray-900">{item.name}</h3>
+                    <p className="text-sm text-gray-500 mb-4">Original Price: ₹{item.price}</p>
+
+                    <div className="text-left">
+                        <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center justify-between">
+                            Discount Percentage (%)
+                            {parseInt(discount) > 0 && (
+                                <span className="text-xs text-green-600 font-bold">
+                                    Final: ₹{(item.price * (1 - parseInt(discount) / 100)).toFixed(0)}
+                                </span>
+                            )}
+                        </label>
+                        <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={discount}
+                            onChange={(e) => setDiscount(e.target.value)}
+                            className="w-full border rounded-xl px-4 py-3 text-lg font-bold text-center outline-none focus:ring-2 focus:ring-red-300"
+                            autoFocus
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2 pt-2">
+                        {[0, 10, 20, 50].map(v => (
+                            <button
+                                key={v}
+                                onClick={() => setDiscount(String(v))}
+                                className={cn(
+                                    "py-2 rounded-lg text-xs font-bold border transition-colors",
+                                    parseInt(discount) === v
+                                        ? "bg-red-500 border-red-500 text-white"
+                                        : "bg-white border-gray-200 text-gray-600 hover:border-red-300"
+                                )}
+                            >
+                                {v === 0 ? 'Clear' : `${v}%`}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="px-6 py-4 border-t flex gap-3 bg-gray-50">
+                    <button
+                        onClick={onClose}
+                        className="flex-1 px-4 py-2.5 rounded-xl border bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => onSave(parseInt(discount) || 0)}
+                        disabled={saving}
+                        className="flex-[2] px-5 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                    >
+                        {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                        Apply Discount
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 const MenuManagement = () => {
     const [items, setItems] = useState<MenuItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [modalItem, setModalItem] = useState<MenuItem | 'new' | null>(null);
+    const [discountModalItem, setDiscountModalItem] = useState<MenuItem | null>(null);
     const [saving, setSaving] = useState(false);
     const [togglingId, setTogglingId] = useState<string | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -339,6 +466,7 @@ const MenuManagement = () => {
                 is_today_special: formData.is_today_special,
                 is_available: formData.is_available,
                 prep_time_minutes: parseInt(formData.prep_time_minutes) || 15,
+                discount_percent: modalItem === 'new' ? 0 : (modalItem?.discount_percent || 0),
             };
             if (modalItem === 'new') {
                 await menuService.create(payload, imageFile);
@@ -349,6 +477,20 @@ const MenuManagement = () => {
             setModalItem(null);
         } catch (e: any) {
             alert('Error: ' + (e.message || 'Failed to save'));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleSaveDiscount = async (discount: number) => {
+        if (!discountModalItem) return;
+        setSaving(true);
+        try {
+            await menuService.update(discountModalItem.id, { discount_percent: discount });
+            await load();
+            setDiscountModalItem(null);
+        } catch (e: any) {
+            alert('Error: ' + (e.message || 'Failed to save discount'));
         } finally {
             setSaving(false);
         }
@@ -448,6 +590,7 @@ const MenuManagement = () => {
                             onEdit={(i) => setModalItem(i)}
                             onDelete={(id) => setDeleteConfirm(id)}
                             onToggle={handleToggle}
+                            onDiscount={(i) => setDiscountModalItem(i)}
                             toggling={togglingId === item.id}
                         />
                     ))}
@@ -460,6 +603,16 @@ const MenuManagement = () => {
                     item={modalItem === 'new' ? undefined : modalItem}
                     onClose={() => setModalItem(null)}
                     onSave={handleSave}
+                    saving={saving}
+                />
+            )}
+
+            {/* Discount Modal */}
+            {discountModalItem && (
+                <DiscountModal
+                    item={discountModalItem}
+                    onClose={() => setDiscountModalItem(null)}
+                    onSave={handleSaveDiscount}
                     saving={saving}
                 />
             )}

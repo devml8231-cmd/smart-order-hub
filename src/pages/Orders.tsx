@@ -219,7 +219,7 @@ const Orders = () => {
                     </div>
 
                     {/* Countdown timer */}
-                    {order.status === 'PREPARING' && order.estimated_ready_at && (
+                    {(order.status === 'PREPARING' || order.status === 'PLACED') && order.estimated_ready_at && (
                       <div className="mb-4">
                         <CountdownTimer targetTime={order.estimated_ready_at} />
                       </div>

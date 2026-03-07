@@ -25,6 +25,7 @@ export interface Order {
     created_at: string;
     updated_at: string;
     estimated_ready_at?: string;
+    chef_id?: string;
     order_items: OrderItem[];
 }
 
@@ -44,6 +45,17 @@ export const orderService = {
         const { data, error } = await supabase
             .from('orders')
             .update(payload)
+            .eq('id', orderId)
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    },
+
+    assignChef: async (orderId: string, chefId: string | null) => {
+        const { data, error } = await supabase
+            .from('orders')
+            .update({ chef_id: chefId, updated_at: new Date().toISOString() })
             .eq('id', orderId)
             .select()
             .single();
@@ -136,4 +148,48 @@ export const menuService = {
             .eq('id', id);
         if (error) throw error;
     },
+};
+export interface Chef {
+    id: string;
+    name: string;
+    is_available: boolean;
+    current_assigned_orders: number;
+    created_at: string;
+}
+
+export const chefService = {
+    getAll: async (): Promise<Chef[]> => {
+        const { data, error } = await supabase
+            .from('chefs')
+            .select('*')
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        return (data || []) as Chef[];
+    },
+
+    create: async (chef: Omit<Chef, 'id' | 'created_at' | 'current_assigned_orders'>): Promise<Chef> => {
+        const { data, error } = await supabase
+            .from('chefs')
+            .insert(chef)
+            .select()
+            .single();
+        if (error) throw error;
+        return data as Chef;
+    },
+
+    update: async (id: string, updates: Partial<Chef>): Promise<Chef> => {
+        const { data, error } = await supabase
+            .from('chefs')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+        if (error) throw error;
+        return data as Chef;
+    },
+
+    delete: async (id: string): Promise<void> => {
+        const { error } = await supabase.from('chefs').delete().eq('id', id);
+        if (error) throw error;
+    }
 };

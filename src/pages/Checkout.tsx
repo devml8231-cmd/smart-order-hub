@@ -38,8 +38,12 @@ const CheckoutPage = () => {
 
     setIsProcessing(true);
     try {
-      // 1. Create order row
-      const order = await orderService.createOrder(user.id, total, phone);
+      // 1. Calculate dynamic wait time
+      const waitMinutes = await orderService.calculateWaitTime(items);
+      const estimatedReadyAt = new Date(Date.now() + waitMinutes * 60000);
+
+      // 2. Create order row
+      const order = await orderService.createOrder(user.id, total, phone, estimatedReadyAt);
 
       // 2. Create order items
       await orderService.createOrderItems(

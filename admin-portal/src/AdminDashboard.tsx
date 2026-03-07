@@ -3,11 +3,13 @@ import {
     ShoppingBag, RefreshCw, Loader2, ChevronDown,
     BarChart3, Clock, CheckCircle2,
     XCircle, ChefHat, Timer, Bell, UtensilsCrossed,
+    UserCircle, Users
 } from 'lucide-react';
 import { cn, formatDate } from './lib/utils';
-import { orderService, Order } from './lib/supabase';
+import { orderService, Order, Chef, chefService } from './lib/supabase';
 import { useAllOrders } from './hooks/useAllOrders';
 import MenuManagement from './MenuManagement';
+import ChefManagement from './ChefManagement';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS = ['PLACED', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'] as const;
@@ -21,24 +23,32 @@ const statusConfig: Record<Order['status'], { label: string; icon: React.Element
 };
 
 // ─── Countdown Timer ──────────────────────────────────────────────────────────
-const CountdownTimer = ({ targetTime }: { targetTime: string }) => {
+const CountdownTimer = ({ targetTime, onExpire }: { targetTime: string; onExpire?: () => void }) => {
     const getRemaining = useCallback(
         () => Math.max(0, Math.floor((new Date(targetTime).getTime() - Date.now()) / 1000)),
         [targetTime]
     );
     const [secs, setSecs] = useState(getRemaining);
+    const [expired, setExpired] = useState(false);
 
     useEffect(() => {
-        const t = setInterval(() => setSecs(getRemaining()), 1000);
+        const t = setInterval(() => {
+            const rem = getRemaining();
+            setSecs(rem);
+            if (rem <= 0 && !expired) {
+                setExpired(true);
+                onExpire?.();
+            }
+        }, 1000);
         return () => clearInterval(t);
-    }, [getRemaining]);
+    }, [getRemaining, onExpire, expired]);
 
-    if (secs <= 0) return <span className="text-green-600 font-semibold text-sm">Should be ready now!</span>;
+    if (secs <= 0) return <span className="text-green-600 font-semibold text-sm">Now Ready!</span>;
 
     const mins = Math.floor(secs / 60);
     const rem = secs % 60;
     return (
-        <span className="font-mono font-bold text-orange-600 text-sm">
+        <span className="font-mono font-black text-orange-600 text-sm">
             {mins > 0 ? `${mins}m ` : ''}{rem.toString().padStart(2, '0')}s
         </span>
     );
@@ -46,16 +56,26 @@ const CountdownTimer = ({ targetTime }: { targetTime: string }) => {
 
 // ─── Order Card ───────────────────────────────────────────────────────────────
 const OrderCard = ({
-    order, onStatusChange, updating,
+    order, onStatusChange, onChefAssign, updating, chefs
 }: {
     order: Order;
     onStatusChange: (id: string, status: string, mins?: number) => void;
+    onChefAssign: (id: string, chefId: string | null) => void;
     updating: boolean;
+    chefs: Chef[];
 }) => {
-    const [estMins, setEstMins] = useState(15);
     const cfg = statusConfig[order.status];
     const StatusIcon = cfg.icon;
     const isTerminal = ['COMPLETED', 'CANCELLED'].includes(order.status);
+
+    const handleTimerExpire = () => {
+        if (['PLACED', 'PREPARING'].includes(order.status)) {
+            console.log(`Order ${order.id} timer expired. Moving to READY.`);
+            onStatusChange(order.id, 'READY');
+        }
+    };
+
+    const assignedChef = chefs.find(c => c.id === order.chef_id);
 
     return (
         <div className={cn('rounded-2xl border p-5 transition-all bg-white shadow-sm', cfg.card)}>
@@ -78,21 +98,17 @@ const OrderCard = ({
                                 <Bell className="w-3 h-3" /> Notify customer!
                             </span>
                         )}
+                        {assignedChef && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-200 text-xs font-semibold">
+                                <ChefHat className="w-3 h-3" /> {assignedChef.name}
+                            </span>
+                        )}
                     </div>
 
                     <p className="text-sm text-gray-400 mb-2">
                         {order.phone && <span className="mr-3">📱 {order.phone}</span>}
                         🕐 {formatDate(order.created_at)}
                     </p>
-
-                    {/* Countdown */}
-                    {order.estimated_ready_at && order.status === 'PREPARING' && (
-                        <div className="flex items-center gap-2 mb-2 bg-orange-50 border border-orange-100 rounded-xl px-3 py-2 w-fit">
-                            <Timer className="w-4 h-4 text-orange-500" />
-                            <span className="text-xs text-gray-500">Ready in:</span>
-                            <CountdownTimer targetTime={order.estimated_ready_at} />
-                        </div>
-                    )}
 
                     {/* Items */}
                     <div className="space-y-0.5 mt-2">
@@ -109,39 +125,59 @@ const OrderCard = ({
                 <div className="flex flex-col items-end gap-2.5 shrink-0">
                     <p className="text-2xl font-bold text-gray-800">₹{order.total_amount}</p>
 
-                    {order.status === 'PLACED' && (
-                        <div className="flex items-center gap-1.5 text-sm border rounded-lg px-2 py-1 bg-gray-50">
-                            <span className="text-gray-500 whitespace-nowrap text-xs">Ready in</span>
-                            <input
-                                type="number" min={1} max={120} value={estMins}
-                                onChange={(e) => setEstMins(parseInt(e.target.value) || 15)}
-                                className="w-12 text-center border-0 bg-transparent font-semibold text-sm outline-none"
-                            />
-                            <span className="text-gray-500 text-xs">min</span>
+                    {/* Countdown moved here */}
+                    {order.estimated_ready_at && ['PLACED', 'PREPARING'].includes(order.status) && (
+                        <div className="flex items-center gap-2 mt-1">
+                            <Timer className="w-3.5 h-3.5 text-orange-500" />
+                            <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Ready in:</span>
+                            <CountdownTimer targetTime={order.estimated_ready_at} onExpire={handleTimerExpire} />
                         </div>
                     )}
 
-                    {!isTerminal && (
-                        <div className="relative">
-                            <select
-                                value={order.status}
-                                disabled={updating}
-                                onChange={(e) => onStatusChange(order.id, e.target.value, order.status === 'PLACED' ? estMins : undefined)}
-                                className={cn(
-                                    'appearance-none pl-3 pr-8 py-2 rounded-xl border text-sm font-semibold cursor-pointer transition-all',
-                                    cfg.badge, 'disabled:opacity-60 disabled:cursor-not-allowed'
-                                )}
-                            >
-                                {STATUS_OPTIONS.map((s) => (
-                                    <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>
-                                ))}
-                            </select>
-                            {updating
-                                ? <Loader2 className="absolute right-2 top-2.5 w-4 h-4 animate-spin pointer-events-none" />
-                                : <ChevronDown className="absolute right-2 top-2.5 w-4 h-4 pointer-events-none" />
-                            }
-                        </div>
-                    )}
+                    <div className="flex flex-col gap-2 w-full min-w-[150px]">
+                        {/* Chef Selector */}
+                        {!isTerminal && (
+                            <div className="relative w-full">
+                                <Users className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
+                                <select
+                                    value={order.chef_id || ''}
+                                    onChange={(e) => onChefAssign(order.id, e.target.value || null)}
+                                    className="w-full appearance-none pl-9 pr-8 py-2 rounded-xl border border-gray-200 bg-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition-all cursor-pointer"
+                                >
+                                    <option value="">Assign Chef</option>
+                                    {chefs.filter(c => c.is_available || c.id === order.chef_id).map(chef => (
+                                        <option key={chef.id} value={chef.id}>
+                                            {chef.name} ({chef.current_assigned_orders} orders)
+                                        </option>
+                                    ))}
+                                </select>
+                                <ChevronDown className="absolute right-2 top-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
+                            </div>
+                        )}
+
+                        {/* Status Selector */}
+                        {!isTerminal && (
+                            <div className="relative w-full">
+                                <select
+                                    value={order.status}
+                                    disabled={updating}
+                                    onChange={(e) => onStatusChange(order.id, e.target.value)}
+                                    className={cn(
+                                        'appearance-none w-full pl-3 pr-8 py-2 rounded-xl border text-sm font-semibold cursor-pointer transition-all',
+                                        cfg.badge, 'disabled:opacity-60 disabled:cursor-not-allowed'
+                                    )}
+                                >
+                                    {STATUS_OPTIONS.map((s) => (
+                                        <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>
+                                    ))}
+                                </select>
+                                {updating
+                                    ? <Loader2 className="absolute right-2 top-2.5 w-4 h-4 animate-spin pointer-events-none" />
+                                    : <ChevronDown className="absolute right-2 top-2.5 w-4 h-4 pointer-events-none" />
+                                }
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
@@ -167,23 +203,49 @@ const StatsBar = ({ orders }: { orders: Order[] }) => (
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 const AdminDashboard = () => {
     const { orders, loading, error, refetch } = useAllOrders();
+    const [chefs, setChefs] = useState<Chef[]>([]);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [filterStatus, setFilterStatus] = useState<string>('ALL');
-    const [activeTab, setActiveTab] = useState<'orders' | 'stats' | 'menu'>('orders');
+    const [activeTab, setActiveTab] = useState<'orders' | 'stats' | 'menu' | 'chefs'>('orders');
+
+    const fetchChefs = useCallback(async () => {
+        try {
+            const data = await chefService.getAll();
+            setChefs(data);
+        } catch (err) {
+            console.error('Failed to fetch chefs:', err);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchChefs();
+    }, [fetchChefs]);
+
+    // Refetch chefs if orders change (to get updated order counts)
+    useEffect(() => {
+        fetchChefs();
+    }, [orders, fetchChefs]);
 
     const filtered = filterStatus === 'ALL' ? orders : orders.filter((o) => o.status === filterStatus);
     const activeCount = orders.filter((o) => ['PLACED', 'PREPARING', 'READY'].includes(o.status)).length;
     const completedRevenue = orders.filter((o) => o.status === 'COMPLETED').reduce((s, o) => s + o.total_amount, 0);
 
-    const handleStatusChange = async (orderId: string, newStatus: string, estMins?: number) => {
-        let estimatedReadyAt: string | undefined;
-        if (newStatus === 'PREPARING' && estMins) {
-            estimatedReadyAt = new Date(Date.now() + estMins * 60 * 1000).toISOString();
-        }
+    const handleStatusChange = async (orderId: string, newStatus: string) => {
         setUpdatingId(orderId);
         try {
-            await orderService.updateOrderStatus(orderId, newStatus, estimatedReadyAt);
+            await orderService.updateOrderStatus(orderId, newStatus);
             refetch();
+        } finally {
+            setUpdatingId(null);
+        }
+    };
+
+    const handleChefAssign = async (orderId: string, chefId: string | null) => {
+        setUpdatingId(orderId);
+        try {
+            await orderService.assignChef(orderId, chefId);
+            refetch();
+            fetchChefs();
         } finally {
             setUpdatingId(null);
         }
@@ -223,6 +285,7 @@ const AdminDashboard = () => {
                     {([
                         { id: 'orders' as const, label: 'Orders', icon: ShoppingBag },
                         { id: 'menu' as const, label: 'Menu', icon: UtensilsCrossed },
+                        { id: 'chefs' as const, label: 'Staff', icon: UserCircle },
                         { id: 'stats' as const, label: 'Analytics', icon: BarChart3 },
                     ]).map(({ id, label, icon: Icon }) => (
                         <button
@@ -288,7 +351,9 @@ const AdminDashboard = () => {
                                     <OrderCard
                                         key={order.id}
                                         order={order}
+                                        chefs={chefs}
                                         onStatusChange={handleStatusChange}
+                                        onChefAssign={handleChefAssign}
                                         updating={updatingId === order.id}
                                     />
                                 ))}
@@ -300,6 +365,11 @@ const AdminDashboard = () => {
                 {/* ── Menu Tab ── */}
                 {activeTab === 'menu' && (
                     <MenuManagement />
+                )}
+
+                {/* ── Chefs Tab ── */}
+                {activeTab === 'chefs' && (
+                    <ChefManagement />
                 )}
 
                 {/* ── Stats Tab ── */}

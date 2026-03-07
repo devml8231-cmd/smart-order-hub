@@ -257,9 +257,24 @@ export const cartService = {
 
 // Order helpers
 export const orderService = {
+    // Help to pick the chef with the minimum workload
+    pickBestChef: async () => {
+        const { data: chefs } = await supabase
+            .from('chefs')
+            .select('*')
+            .eq('is_available', true)
+            .order('current_assigned_orders', { ascending: true })
+            .limit(1);
+        return chefs && chefs.length > 0 ? chefs[0] : null;
+    },
+
     // Create a new order and return it
-    createOrder: async (userId: string, totalAmount: number, phone: string) => {
+    createOrder: async (userId: string, totalAmount: number, phone: string, estimatedReadyAt?: Date) => {
         const tokenNumber = Math.floor(1000 + Math.random() * 9000);
+
+        // Fetch available chefs to assign one automatically (same logic as wait calculation)
+        const bestChef = await orderService.pickBestChef();
+
         const { data, error } = await supabase
             .from('orders')
             .insert({
@@ -268,11 +283,56 @@ export const orderService = {
                 status: 'PLACED',
                 total_amount: totalAmount,
                 phone,
+                chef_id: bestChef?.id || null,
+                estimated_ready_at: estimatedReadyAt ? estimatedReadyAt.toISOString() : null,
             })
             .select()
             .single();
         if (error) throw error;
         return data;
+    },
+
+    // Calculate dynamic wait time using chef-specific queue workload
+    calculateWaitTime: async (items: any[]) => {
+        try {
+            // 1. Pick the best chef (lowest workload)
+            const targetChef = await orderService.pickBestChef();
+
+            // Calculate base prep time for the new order (using corrected property name: prepTime)
+            const newOrderPrepTime = items.reduce((sum, item) => sum + (item.prepTime || 15) * item.quantity, 0);
+
+            if (!targetChef) return Math.ceil(newOrderPrepTime);
+
+            // 2. Fetch all active orders for THIS specific chef to find their "busy until" time
+            const { data: chefOrders } = await supabase
+                .from('orders')
+                .select('id, estimated_ready_at')
+                .eq('chef_id', targetChef.id)
+                .in('status', ['PLACED', 'PREPARING'])
+                .order('estimated_ready_at', { ascending: false })
+                .limit(1);
+
+            const now = new Date();
+            let chefBusyUntilMs = now.getTime();
+
+            if (chefOrders && chefOrders.length > 0 && chefOrders[0].estimated_ready_at) {
+                const latestOrderReadyAt = new Date(chefOrders[0].estimated_ready_at);
+                // Chef is busy until the last assigned order is finished
+                chefBusyUntilMs = Math.max(now.getTime(), latestOrderReadyAt.getTime());
+            }
+
+            // 3. Backlog is the gap between now and when the chef is free
+            const backlogMinutes = (chefBusyUntilMs - now.getTime()) / 60000;
+
+            // Final wait time is when the chef finishes current work + new prep time
+            const finalWaitMinutes = Math.ceil(backlogMinutes + newOrderPrepTime);
+
+            return finalWaitMinutes;
+        } catch (error) {
+            console.error('Error calculating wait time:', error);
+            // Fallback using corrected property name
+            return Math.ceil(items.reduce((sum, item) => sum + (item.prepTime || 15) * item.quantity, 0));
+        }
     },
 
     // Create order items for an order

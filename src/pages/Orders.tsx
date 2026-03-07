@@ -12,11 +12,13 @@ import {
   AlertCircle,
   ShoppingBag,
   Timer,
+  Star,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useOrders, Order, canCancelOrder, getCancellationTimeRemaining } from '@/hooks/useOrders';
 import { Header } from '@/components/food/Header';
 import { orderService } from '@/services/supabase';
+import { ReviewModal } from '@/components/ReviewModal';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -127,6 +129,14 @@ const Orders = () => {
   const { orders, loading, error, refetch } = useOrders();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // Track which item the review modal is open for
+  const [reviewTarget, setReviewTarget] = useState<{
+    orderId: string;
+    menuItemId: string;
+    menuItemName: string;
+  } | null>(null);
+  // Track which (orderId, menuItemId) pairs have been rated this session
+  const [ratedItems, setRatedItems] = useState<Set<string>>(new Set());
 
   // Auto-refresh orders every 10 seconds to update cancellation timers
   useEffect(() => {
@@ -344,7 +354,7 @@ const Orders = () => {
                 const config = statusConfig[order.status];
                 return (
                   <div key={order.id} className="bg-card rounded-xl border p-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-3">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <p className="font-semibold">Token #{order.token_number}</p>
@@ -355,13 +365,43 @@ const Orders = () => {
                             {config.label}
                           </span>
                         </div>
-                        <p className="text-muted-foreground text-sm">
-                          {order.order_items.slice(0, 2).map(i => i.menu_item_data?.name).join(', ')}
-                          {order.order_items.length > 2 && ` +${order.order_items.length - 2} more`}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">{formatDate(order.created_at)}</p>
+                        <p className="text-xs text-muted-foreground">{formatDate(order.created_at)}</p>
                       </div>
                       <p className="font-bold text-lg shrink-0 ml-4">₹{order.total_amount}</p>
+                    </div>
+
+                    {/* Items with Rate button for COMPLETED orders */}
+                    <div className="space-y-2">
+                      {order.order_items.map((item) => {
+                        const rateKey = `${order.id}__${item.menu_item_id}`;
+                        const alreadyRated = ratedItems.has(rateKey);
+                        return (
+                          <div key={item.id} className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">
+                              {item.quantity}× {item.menu_item_data?.name}
+                            </span>
+                            {order.status === 'COMPLETED' && (
+                              alreadyRated ? (
+                                <span className="flex items-center gap-1 text-green-600 text-xs font-medium">
+                                  <CheckCircle2 className="w-3.5 h-3.5" /> Rated
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => setReviewTarget({
+                                    orderId: order.id,
+                                    menuItemId: item.menu_item_id,
+                                    menuItemName: item.menu_item_data?.name ?? 'Item',
+                                  })}
+                                  className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium hover:underline transition-colors"
+                                >
+                                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                                  Rate
+                                </button>
+                              )
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -384,6 +424,19 @@ const Orders = () => {
           </div>
         )}
       </main>
+
+      {/* Review Modal */}
+      {reviewTarget && (
+        <ReviewModal
+          orderId={reviewTarget.orderId}
+          menuItemId={reviewTarget.menuItemId}
+          menuItemName={reviewTarget.menuItemName}
+          onClose={() => setReviewTarget(null)}
+          onSuccess={() => {
+            setRatedItems((prev) => new Set(prev).add(`${reviewTarget.orderId}__${reviewTarget.menuItemId}`));
+          }}
+        />
+      )}
     </div>
   );
 };

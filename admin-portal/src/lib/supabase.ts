@@ -193,3 +193,62 @@ export const chefService = {
         if (error) throw error;
     }
 };
+
+// ─── Rating / Review types & service ─────────────────────────────────────────
+export interface FoodRating {
+    id: string;
+    menu_item_id: string;
+    order_id?: string;
+    user_id?: string;
+    rating: number;          // 1–5
+    comment?: string;
+    is_anonymous: boolean;
+    created_at: string;
+    // joined fields
+    menu_item_data?: { name: string; image_url?: string };
+}
+
+export const ratingService = {
+    /** Fetch all reviews (newest first), joined with menu_item name */
+    getAll: async (): Promise<FoodRating[]> => {
+        const { data, error } = await supabase
+            .from('food_ratings')
+            .select(`
+                *,
+                menu_items ( name, image_url )
+            `)
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        // Flatten joined data
+        return ((data || []) as any[]).map((r) => ({
+            ...r,
+            menu_item_data: r.menu_items ?? undefined,
+            menu_items: undefined,
+        })) as FoodRating[];
+    },
+
+    /** Fetch reviews for a specific menu item */
+    getByMenuItem: async (menuItemId: string): Promise<FoodRating[]> => {
+        const { data, error } = await supabase
+            .from('food_ratings')
+            .select('*')
+            .eq('menu_item_id', menuItemId)
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        return (data || []) as FoodRating[];
+    },
+
+    /** Admin: delete a review */
+    deleteReview: async (id: string): Promise<void> => {
+        const { error } = await supabase.from('food_ratings').delete().eq('id', id);
+        if (error) throw error;
+    },
+
+    /** Admin: subscribe to new reviews in real-time */
+    subscribeToReviews: (callback: (payload: any) => void) => {
+        return supabase
+            .channel('food_ratings_admin')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'food_ratings' }, callback)
+            .subscribe();
+    },
+};

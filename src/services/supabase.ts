@@ -444,3 +444,73 @@ export const orderService = {
             .subscribe();
     },
 };
+
+// Rating helpers
+export const ratingService = {
+    // Submit a new rating for a food item
+    submitRating: async (params: {
+        menu_item_id: string;
+        order_id?: string;
+        rating: number;
+        comment?: string;
+        is_anonymous?: boolean;
+    }) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data, error } = await supabase
+            .from('food_ratings')
+            .upsert(
+                {
+                    menu_item_id: params.menu_item_id,
+                    order_id: params.order_id ?? null,
+                    user_id: user?.id ?? null,
+                    rating: params.rating,
+                    comment: params.comment ?? null,
+                    is_anonymous: params.is_anonymous ?? false,
+                },
+                {
+                    onConflict: 'menu_item_id,order_id,user_id',
+                    ignoreDuplicates: false,
+                }
+            )
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    },
+
+    // Get average rating and count for a menu item
+    getMenuItemRating: async (menuItemId: string) => {
+        const { data, error } = await supabase
+            .from('menu_items')
+            .select('avg_rating, rating_count')
+            .eq('id', menuItemId)
+            .single();
+        if (error) throw error;
+        return data as { avg_rating: number; rating_count: number };
+    },
+
+    // Get all reviews for a menu item
+    getMenuItemReviews: async (menuItemId: string) => {
+        const { data, error } = await supabase
+            .from('food_ratings')
+            .select('*')
+            .eq('menu_item_id', menuItemId)
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        return data || [];
+    },
+
+    // Check if a user has already rated an item for a given order
+    hasRated: async (menuItemId: string, orderId: string) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return false;
+        const { data } = await supabase
+            .from('food_ratings')
+            .select('id')
+            .eq('menu_item_id', menuItemId)
+            .eq('order_id', orderId)
+            .eq('user_id', user.id)
+            .maybeSingle();
+        return !!data;
+    },
+};

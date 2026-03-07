@@ -8,7 +8,9 @@ export interface MenuItem {
   isVeg: boolean;
   isBestSeller?: boolean;
   isTodaySpecial?: boolean;
-  rating: number;
+  rating: number;        // legacy static field kept for compatibility
+  avgRating?: number;    // live average from food_ratings table
+  ratingCount?: number;  // number of actual reviews
   prepTime: number; // in minutes
   available: boolean;
   customizable?: boolean;

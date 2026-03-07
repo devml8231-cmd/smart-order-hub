@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { StarRating } from './StarRating';
 import { Button } from './ui/button';
-import { api } from '@/services/api';
+import { ratingService } from '@/services/supabase';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -40,9 +40,9 @@ export const ReviewModal = ({
 
         try {
             setSubmitting(true);
-            await api.createReview({
-                order_id: orderId,
+            await ratingService.submitRating({
                 menu_item_id: menuItemId,
+                order_id: orderId,
                 rating,
                 comment: comment.trim() || undefined,
                 is_anonymous: isAnonymous,

@@ -3,13 +3,14 @@ import {
     ShoppingBag, RefreshCw, Loader2, ChevronDown,
     BarChart3, Clock, CheckCircle2,
     XCircle, ChefHat, Timer, Bell, UtensilsCrossed,
-    UserCircle, Users
+    UserCircle, Users, Star
 } from 'lucide-react';
 import { cn, formatDate } from './lib/utils';
 import { orderService, Order, Chef, chefService } from './lib/supabase';
 import { useAllOrders } from './hooks/useAllOrders';
 import MenuManagement from './MenuManagement';
 import ChefManagement from './ChefManagement';
+import Reviews from './Reviews';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS = ['PLACED', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'] as const;
@@ -206,7 +207,7 @@ const AdminDashboard = () => {
     const [chefs, setChefs] = useState<Chef[]>([]);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [filterStatus, setFilterStatus] = useState<string>('ALL');
-    const [activeTab, setActiveTab] = useState<'orders' | 'stats' | 'menu' | 'chefs'>('orders');
+    const [activeTab, setActiveTab] = useState<'orders' | 'stats' | 'menu' | 'chefs' | 'reviews'>('orders');
 
     const fetchChefs = useCallback(async () => {
         try {
@@ -281,11 +282,12 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Tabs */}
-                <div className="max-w-6xl mx-auto px-4 sm:px-6 flex gap-1">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 flex gap-1 overflow-x-auto">
                     {([
                         { id: 'orders' as const, label: 'Orders', icon: ShoppingBag },
                         { id: 'menu' as const, label: 'Menu', icon: UtensilsCrossed },
                         { id: 'chefs' as const, label: 'Staff', icon: UserCircle },
+                        { id: 'reviews' as const, label: 'Reviews', icon: Star },
                         { id: 'stats' as const, label: 'Analytics', icon: BarChart3 },
                     ]).map(({ id, label, icon: Icon }) => (
                         <button
@@ -370,6 +372,11 @@ const AdminDashboard = () => {
                 {/* ── Chefs Tab ── */}
                 {activeTab === 'chefs' && (
                     <ChefManagement />
+                )}
+
+                {/* ── Reviews Tab ── */}
+                {activeTab === 'reviews' && (
+                    <Reviews />
                 )}
 
                 {/* ── Stats Tab ── */}

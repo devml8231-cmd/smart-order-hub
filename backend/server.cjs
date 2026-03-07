@@ -1,9 +1,11 @@
 // server.js
 
 const express = require("express");
+const cors = require("cors");
 const HybridScheduler = require("./scheduler.cjs");
 const AIRecommendationEngine = require("./airecommendation.cjs");
 const { createClient } = require("@supabase/supabase-js");
+const Razorpay = require("razorpay");
 require("dotenv").config({ path: "../.env" });
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -11,7 +13,14 @@ const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const app = express();
+app.use(cors());
 app.use(express.json());
+
+// Razorpay instance (uses test credentials from .env)
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_YA0NM1vzMXoK7n',
+  key_secret: process.env.RAZORPAY_SECRET || 'TYbQmsU1f0kuJU3VQZlUx9sA',
+});
 
 // In-memory recommendation engine (for demo)
 let recommendationEngine = null;
@@ -145,6 +154,37 @@ app.post("/calculate-wait-time", async (req, res) => {
   } catch (error) {
     console.error('Wait time calculation error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/* =========================
+   RAZORPAY – CREATE ORDER
+========================= */
+app.post("/api/payment/create-order", async (req, res) => {
+  try {
+    const { amount, currency = "INR", receipt } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: "Invalid amount" });
+    }
+
+    const options = {
+      amount: Math.round(amount), // amount in paise (already converted by frontend)
+      currency,
+      receipt: receipt || `receipt_${Date.now()}`,
+      payment_capture: 1, // auto-capture
+    };
+
+    const order = await razorpay.orders.create(options);
+
+    res.json({
+      id: order.id,
+      amount: order.amount,
+      currency: order.currency,
+    });
+  } catch (error) {
+    console.error("Razorpay order creation error:", error);
+    res.status(500).json({ error: error.message || "Failed to create payment order" });
   }
 });
 

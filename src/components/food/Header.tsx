@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { Search, ShoppingCart, User, Menu, X, LogOut, Package } from 'lucide-react';
+import { ShoppingCart, User, Menu, X, LogOut, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -15,6 +14,9 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
+import { SmartSearchBar } from '@/components/SmartSearchBar';
+import { MenuItem } from '@/types/food';
+import { useMenuItems } from '@/hooks/useMenu';
 
 interface HeaderProps {
   onCartClick: () => void;
@@ -24,13 +26,14 @@ interface HeaderProps {
 export const Header = ({ onCartClick, onSearchChange }: HeaderProps) => {
   const { totalItems } = useCart();
   const { user, isAuthenticated, signOut } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
+  // Load menu items once here so the search bar can filter them locally (no extra DB calls)
+  const { items: menuItems } = useMenuItems();
 
-  const handleSearch = (value: string) => {
-    setSearchQuery(value);
-    onSearchChange?.(value);
+  const handleSelectItem = (_item: MenuItem) => {
+    // Close mobile menu when an item is selected
+    setMobileMenuOpen(false);
   };
 
   const handleSignOut = async () => {
@@ -60,17 +63,15 @@ export const Header = ({ onCartClick, onSearchChange }: HeaderProps) => {
             </span>
           </Link>
 
-          {/* Search Bar - Desktop */}
+          {/* Search Bar - Desktop (autocomplete with real product suggestions) */}
           <div className="hidden md:flex flex-1 max-w-md">
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search for dishes..."
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="pl-10 bg-muted border-0 focus-visible:ring-primary"
-              />
-            </div>
+            <SmartSearchBar
+              menuItems={menuItems}
+              onSearchChange={onSearchChange}
+              onSelectItem={handleSelectItem}
+              placeholder="Search for dishes..."
+              className="w-full"
+            />
           </div>
 
           {/* Actions */}
@@ -157,16 +158,18 @@ export const Header = ({ onCartClick, onSearchChange }: HeaderProps) => {
         {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="md:hidden mt-3 animate-slide-up space-y-3">
-            {/* Mobile Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search for dishes..."
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="pl-10 bg-muted border-0"
-              />
-            </div>
+            {/* Mobile Search with autocomplete */}
+            <SmartSearchBar
+              menuItems={menuItems}
+              onSearchChange={(q) => {
+                onSearchChange?.(q);
+              }}
+              onSelectItem={(item) => {
+                handleSelectItem(item);
+                setMobileMenuOpen(false);
+              }}
+              placeholder="Search for dishes..."
+            />
 
             {/* Mobile Auth Buttons */}
             {!isAuthenticated && (
@@ -198,4 +201,3 @@ export const Header = ({ onCartClick, onSearchChange }: HeaderProps) => {
     </header>
   );
 };
-

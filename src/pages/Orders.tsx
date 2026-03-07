@@ -14,8 +14,20 @@ import {
   Timer,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useOrders, Order } from '@/hooks/useOrders';
+import { useOrders, Order, canCancelOrder, getCancellationTimeRemaining } from '@/hooks/useOrders';
 import { Header } from '@/components/food/Header';
+import { orderService } from '@/services/supabase';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from '@/hooks/use-toast';
 
 // --- Countdown timer component ---
 const CountdownTimer = ({ targetTime }: { targetTime: string }) => {
@@ -113,6 +125,36 @@ const formatDate = (dateString: string) => {
 const Orders = () => {
   const navigate = useNavigate();
   const { orders, loading, error, refetch } = useOrders();
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Auto-refresh orders every 10 seconds to update cancellation timers
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Small trick to trigger re-renders for timers without full fetch
+      setIsRefreshing(prev => !prev);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleCancelOrder = async (orderId: string) => {
+    try {
+      await orderService.cancelOrder(orderId);
+      toast({
+        title: "Order Cancelled",
+        description: "Your order has been cancelled successfully.",
+      });
+      refetch();
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to cancel order",
+        variant: "destructive",
+      });
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   const activeOrders = orders.filter((o) =>
     ['PLACED', 'PREPARING', 'READY'].includes(o.status)
@@ -250,12 +292,48 @@ const Orders = () => {
                       <p className="text-xs text-muted-foreground">{formatDate(order.created_at)}</p>
                       <p className="font-display font-bold text-lg">₹{order.total_amount}</p>
                     </div>
+
+                    {/* Cancellation Button */}
+                    {canCancelOrder(order) && (
+                      <div className="mt-4 pt-4 border-t flex justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive hover:bg-destructive/10 border-destructive/20"
+                          onClick={() => setCancellingId(order.id)}
+                        >
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Cancel Order ({Math.ceil(getCancellationTimeRemaining(order.created_at))}m left)
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
           </section>
         )}
+
+        {/* Cancellation Confirmation Dialog */}
+        <AlertDialog open={!!cancellingId} onOpenChange={(open) => !open && setCancellingId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will cancel your order. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep Order</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => cancellingId && handleCancelOrder(cancellingId)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Yes, Cancel Order
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Past Orders */}
         {pastOrders.length > 0 && (

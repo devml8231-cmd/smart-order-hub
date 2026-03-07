@@ -131,7 +131,7 @@ export const getCancellationTimeRemaining = (createdAt: string): number => {
     const created = new Date(createdAt);
     const now = new Date();
     const elapsed = (now.getTime() - created.getTime()) / 1000 / 60; // minutes
-    return Math.max(0, 3 - elapsed);
+    return Math.max(0, 2 - elapsed);
 };
 
 export const canCancelOrder = (order: Order): boolean => {

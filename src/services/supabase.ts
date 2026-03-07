@@ -399,6 +399,18 @@ export const orderService = {
         return data;
     },
 
+    // Cancel an order
+    cancelOrder: async (orderId: string) => {
+        const { data, error } = await supabase
+            .from('orders')
+            .update({ status: 'CANCELLED', updated_at: new Date().toISOString() })
+            .eq('id', orderId)
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    },
+
     // Real-time subscription for a user's orders
     subscribeToUserOrders: (userId: string, callback: (payload: any) => void) => {
         return supabase

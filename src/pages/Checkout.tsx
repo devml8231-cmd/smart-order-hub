@@ -10,6 +10,7 @@ import { ArrowLeft, CreditCard, Smartphone, AlertCircle, ShieldCheck } from 'luc
 import { toast } from '@/hooks/use-toast';
 import { orderService } from '@/services/supabase';
 import { razorpayService } from '@/services/razorpay';
+import { smsService } from '@/services/sms';
 
 const CheckoutPage = () => {
   const navigate = useNavigate();
@@ -96,7 +97,21 @@ const CheckoutPage = () => {
         })
       );
 
-      // 3. Clear cart and redirect
+      // 3. Send SMS notification with order details and wait time
+      try {
+        await smsService.sendOrderConfirmation({
+          to: phone,
+          tokenNumber: order.token_number,
+          waitMinutes: waitMinutes,
+          totalAmount: total,
+          itemsCount: items.length,
+        });
+      } catch (smsError: any) {
+        console.warn('Failed to send SMS notification:', smsError.message);
+        // Don't fail the order if SMS fails
+      }
+
+      // 4. Clear cart and redirect
       await clearCart();
 
       toast({

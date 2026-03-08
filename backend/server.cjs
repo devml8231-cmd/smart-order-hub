@@ -6,6 +6,7 @@ const HybridScheduler = require("./scheduler.cjs");
 const AIRecommendationEngine = require("./airecommendation.cjs");
 const { createClient } = require("@supabase/supabase-js");
 const Razorpay = require("razorpay");
+const { Twilio } = require("twilio");
 require("dotenv").config({ path: "../.env" });
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -24,6 +25,18 @@ const razorpay = new Razorpay({
 
 // In-memory recommendation engine (for demo)
 let recommendationEngine = null;
+
+// Twilio configuration
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+
+const twilioClient = accountSid && authToken ? new Twilio(accountSid, authToken) : null;
+
+// Helper function to format phone number
+const formatPhoneNumber = (phone) => {
+  return phone.startsWith('+91') ? phone : `+91${phone}`;
+};
 
 /* =========================
    HYBRID SCHEDULER ROUTE
@@ -188,6 +201,149 @@ app.post("/api/payment/create-order", async (req, res) => {
   }
 });
 
+/* =========================
+   SMS SERVICE ENDPOINTS
+========================= */
+
+// Send order confirmation SMS
+app.post("/api/sms/order-confirmation", async (req, res) => {
+  try {
+    if (!twilioClient) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Twilio not configured' 
+      });
+    }
+
+    const { to, tokenNumber, waitMinutes, totalAmount, itemsCount } = req.body;
+
+    if (!to || !tokenNumber || !waitMinutes || !totalAmount || !itemsCount) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields'
+      });
+    }
+
+    const formattedPhone = formatPhoneNumber(to);
+    const message = `🍔 QuickBite Order Confirmed!
+📋 Token: #${tokenNumber}
+⏱️ Ready in: ${waitMinutes} mins
+💰 Total: ₹${totalAmount}
+📦 Items: ${itemsCount}
+Thank you for your order!`;
+
+    const result = await twilioClient.messages.create({
+      body: message,
+      from: twilioPhoneNumber,
+      to: formattedPhone,
+    });
+
+    console.log('Order confirmation SMS sent:', result.sid);
+    res.json({ success: true, messageId: result.sid });
+
+  } catch (error) {
+    console.error('Failed to send order confirmation SMS:', error.message);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Send order ready notification
+app.post("/api/sms/order-ready", async (req, res) => {
+  try {
+    if (!twilioClient) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Twilio not configured' 
+      });
+    }
+
+    const { to, tokenNumber } = req.body;
+
+    if (!to || !tokenNumber) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields'
+      });
+    }
+
+    const formattedPhone = formatPhoneNumber(to);
+    const message = `🎉 Your QuickBite order is ready!
+📋 Token: #${tokenNumber}
+Please collect your order from the counter. Enjoy your meal!`;
+
+    const result = await twilioClient.messages.create({
+      body: message,
+      from: twilioPhoneNumber,
+      to: formattedPhone,
+    });
+
+    console.log('Order ready SMS sent:', result.sid);
+    res.json({ success: true, messageId: result.sid });
+
+  } catch (error) {
+    console.error('Failed to send order ready SMS:', error.message);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Test SMS
+app.post("/api/sms/test", async (req, res) => {
+  try {
+    if (!twilioClient) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Twilio not configured' 
+      });
+    }
+
+    const { to } = req.body;
+
+    if (!to) {
+      return res.status(400).json({
+        success: false,
+        error: 'Phone number is required'
+      });
+    }
+
+    const formattedPhone = formatPhoneNumber(to);
+    const message = `🧪 QuickBite SMS Test
+This is a test message from QuickBite ordering system.
+SMS notifications are working correctly!`;
+
+    const result = await twilioClient.messages.create({
+      body: message,
+      from: twilioPhoneNumber,
+      to: formattedPhone,
+    });
+
+    console.log('Test SMS sent:', result.sid);
+    res.json({ success: true, messageId: result.sid });
+
+  } catch (error) {
+    console.error('Failed to send test SMS:', error.message);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Health check
+app.get("/api/sms/health", (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    twilioConfigured: !!twilioClient,
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Twilio configured: ${!!twilioClient}`);
 });

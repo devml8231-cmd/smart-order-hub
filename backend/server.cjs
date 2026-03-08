@@ -209,9 +209,9 @@ app.post("/api/payment/create-order", async (req, res) => {
 app.post("/api/sms/order-confirmation", async (req, res) => {
   try {
     if (!twilioClient) {
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Twilio not configured' 
+      return res.status(500).json({
+        success: false,
+        error: 'Twilio not configured'
       });
     }
 
@@ -243,9 +243,9 @@ Thank you for your order!`;
 
   } catch (error) {
     console.error('Failed to send order confirmation SMS:', error.message);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
@@ -254,9 +254,9 @@ Thank you for your order!`;
 app.post("/api/sms/order-ready", async (req, res) => {
   try {
     if (!twilioClient) {
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Twilio not configured' 
+      return res.status(500).json({
+        success: false,
+        error: 'Twilio not configured'
       });
     }
 
@@ -285,9 +285,50 @@ Please collect your order from the counter. Enjoy your meal!`;
 
   } catch (error) {
     console.error('Failed to send order ready SMS:', error.message);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Send order completed notification
+app.post("/api/sms/order-completed", async (req, res) => {
+  try {
+    if (!twilioClient) {
+      return res.status(500).json({
+        success: false,
+        error: 'Twilio not configured'
+      });
+    }
+
+    const { to, tokenNumber } = req.body;
+
+    if (!to || !tokenNumber) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields'
+      });
+    }
+
+    const formattedPhone = formatPhoneNumber(to);
+    const message = `✅ Your QuickBite order #${tokenNumber} has been completed.
+Thank you for dining with us! How was your experience? Rate us on the app!`;
+
+    const result = await twilioClient.messages.create({
+      body: message,
+      from: twilioPhoneNumber,
+      to: formattedPhone,
+    });
+
+    console.log('Order completed SMS sent:', result.sid);
+    res.json({ success: true, messageId: result.sid });
+
+  } catch (error) {
+    console.error('Failed to send order completed SMS:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
@@ -296,9 +337,9 @@ Please collect your order from the counter. Enjoy your meal!`;
 app.post("/api/sms/test", async (req, res) => {
   try {
     if (!twilioClient) {
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Twilio not configured' 
+      return res.status(500).json({
+        success: false,
+        error: 'Twilio not configured'
       });
     }
 
@@ -327,17 +368,17 @@ SMS notifications are working correctly!`;
 
   } catch (error) {
     console.error('Failed to send test SMS:', error.message);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
 
 // Health check
 app.get("/api/sms/health", (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     twilioConfigured: !!twilioClient,
     timestamp: new Date().toISOString()
   });

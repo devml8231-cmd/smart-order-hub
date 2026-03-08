@@ -76,14 +76,6 @@ export const useOrders = () => {
                     prev.map((o) => (o.id === updated.id ? { ...o, ...updated } : o))
                 );
                 if (updated.status === 'READY') {
-                    // Send SMS notification for order ready
-                    if (updated.phone) {
-                        smsService.sendOrderReadyNotification(updated.phone, updated.token_number)
-                            .catch((smsError: any) => {
-                                console.warn('Failed to send order ready SMS:', smsError.message);
-                            });
-                    }
-                    
                     toast({
                         title: '🎉 Order Ready!',
                         description: `Your order #${updated.token_number} is ready for pickup!`,

@@ -6,7 +6,7 @@ import { toast } from '@/hooks/use-toast';
 const OrderConfirmation = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { token, total, items } = location.state || {};
+  const { token, total, items, waitTime } = location.state || {};
 
   if (!token) {
     navigate('/');
@@ -47,6 +47,22 @@ const OrderConfirmation = () => {
             Show this token at the counter to collect your order
           </p>
         </div>
+
+        {/* Wait Time Card */}
+        {waitTime && (
+          <div className="bg-primary/5 border border-primary/10 rounded-2xl p-6 mb-6 text-center animate-slide-up">
+            <p className="text-muted-foreground text-sm mb-2">Estimated Wait Time</p>
+            <div className="flex items-center justify-center gap-2">
+              <span className="font-display font-bold text-4xl text-primary">
+                {waitTime}
+              </span>
+              <span className="text-xl font-semibold text-primary/80">mins</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-4">
+              We'll send an SMS when your order is ready for pickup
+            </p>
+          </div>
+        )}
 
         {/* Order Details */}
         <div className="bg-card rounded-2xl border p-6 mb-6 animate-slide-up">

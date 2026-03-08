@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { smsService } from './sms';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
@@ -57,6 +58,18 @@ export const orderService = {
             .select()
             .single();
         if (error) throw error;
+
+        // Send SMS notifications if status is READY or COMPLETED
+        if (data.phone) {
+            if (status === 'READY') {
+                smsService.sendOrderReadyNotification(data.phone, data.token_number)
+                    .catch(err => console.error('Error sending ready SMS:', err));
+            } else if (status === 'COMPLETED') {
+                smsService.sendOrderCompletedNotification(data.phone, data.token_number)
+                    .catch(err => console.error('Error sending completed SMS:', err));
+            }
+        }
+
         return data;
     },
 

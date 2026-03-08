@@ -126,6 +126,7 @@ const CheckoutPage = () => {
           total,
           items: items.length,
           paymentId: paymentResult.razorpay_payment_id,
+          waitTime: waitMinutes,
         },
       });
     } catch (error: any) {

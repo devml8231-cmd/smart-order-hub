@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { X, Loader2, AlertTriangle, ShoppingCart } from 'lucide-react';
 import { Button } from './ui/button';
 import { api } from '@/services/api';
+import { smsService } from '@/services/sms';
+import { orderService } from '@/services/supabase';
 import { toast } from '@/hooks/use-toast';
 import { Order } from '@/hooks/useOrders';
 import { useNavigate } from 'react-router-dom';
@@ -64,14 +66,36 @@ export const ReorderModal = ({ order, onClose }: ReorderModalProps) => {
                 pickup_time: pickupTime,
             });
 
+            // Calculate wait time for the new order
+            const waitMinutes = await orderService.calculateWaitTime(order.order_items.map(oi => oi.menu_item_data || oi.menu_item));
+
+            // Send SMS notification
+            try {
+                await smsService.sendOrderConfirmation({
+                    to: order.phone || '',
+                    tokenNumber: response.data.data.token_number,
+                    waitMinutes: waitMinutes,
+                    totalAmount: order.final_amount,
+                    itemsCount: order.order_items.length,
+                });
+            } catch (smsError: any) {
+                console.warn('Failed to send SMS notification for reorder:', smsError.message);
+            }
+
             toast({
                 title: '✅ Order placed!',
-                description: `Your order has been placed successfully`,
+                description: `Your order has been placed successfully. Wait time: ${waitMinutes} mins`,
             });
 
             // Navigate to order confirmation
             navigate('/order-confirmation', {
-                state: { order: response.data.data },
+                state: {
+                    token: response.data.data.token_number,
+                    orderId: response.data.data.id,
+                    total: order.final_amount,
+                    items: order.order_items.length,
+                    waitTime: waitMinutes
+                },
             });
         } catch (err: any) {
             toast({

@@ -339,7 +339,7 @@ export const orderService = {
             const targetChef = await orderService.pickBestChef();
 
             // Calculate base prep time for the new order (using corrected property name: prepTime)
-            const newOrderPrepTime = items.reduce((sum, item) => sum + (item.prepTime || 15) * item.quantity, 0);
+            const newOrderPrepTime = items.reduce((sum, item) => sum + (item.prepTime || 15), 0);
 
             if (!targetChef) return Math.ceil(newOrderPrepTime);
 
@@ -371,7 +371,7 @@ export const orderService = {
         } catch (error) {
             console.error('Error calculating wait time:', error);
             // Fallback using corrected property name
-            return Math.ceil(items.reduce((sum, item) => sum + (item.prepTime || 15) * item.quantity, 0));
+            return Math.ceil(items.reduce((sum, item) => sum + (item.prepTime || 15), 0));
         }
     },
 

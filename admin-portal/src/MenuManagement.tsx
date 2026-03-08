@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Pencil, Trash2, Loader2, ImagePlus, ToggleLeft, ToggleRight, X, Search, Tag, Settings2 } from 'lucide-react';
 import { menuService, MenuItem, orderService, Order } from './lib/supabase';
+import { smsService } from './lib/sms';
 import { cn } from './lib/utils';
 import { CustomizationManager } from './components/CustomizationManager';
 
@@ -443,7 +444,7 @@ const calculateBestSellers = (items: MenuItem[], orders: Order[]): Set<string> =
     if (!orders.length) {
         return new Set();
     }
-    
+
     // Count quantity sold per menu item
     const salesCount: Record<string, number> = {};
     orders.forEach(order => {
@@ -451,29 +452,29 @@ const calculateBestSellers = (items: MenuItem[], orders: Order[]): Set<string> =
             salesCount[oi.menu_item_id] = (salesCount[oi.menu_item_id] || 0) + oi.quantity;
         });
     });
-    
+
     if (Object.keys(salesCount).length === 0) {
         return new Set();
     }
-    
+
     // Find the max sales count
     const maxSales = Math.max(...Object.values(salesCount));
-    
+
     if (maxSales === 0) {
         return new Set();
     }
-    
+
     // Items with sales >= 80% of max are considered best sellers
     const threshold = maxSales * 0.8;
-    
+
     const bestSellers = new Set<string>();
-    
+
     Object.entries(salesCount).forEach(([itemId, count]) => {
         if (count >= threshold) {
             bestSellers.add(itemId);
         }
     });
-    
+
     return bestSellers;
 };
 
@@ -535,6 +536,29 @@ const MenuManagement = () => {
             } else if (modalItem) {
                 await menuService.update(modalItem.id, payload, imageFile);
             }
+
+            // Trigger Marketing SMS if this is a "Today's Special"
+            if (payload.is_today_special && (modalItem === 'new' || (modalItem !== 'new' && !modalItem?.is_today_special))) {
+                try {
+                    console.log('Fetching customer phone numbers for marketing...');
+                    const phoneNumbers = await orderService.getAllCustomerPhones();
+
+                    if (phoneNumbers.length > 0) {
+                        const marketingResult = await smsService.sendTodaysSpecialNotification({
+                            phoneNumbers,
+                            itemName: payload.name,
+                            price: payload.price,
+                            description: payload.description
+                        });
+                        console.log(`Marketing SMS triggered: ${marketingResult.sentCount} sent, ${marketingResult.failedCount} failed`);
+                    } else {
+                        console.log('No customer phone numbers found for marketing.');
+                    }
+                } catch (smsErr: any) {
+                    console.error('Failed to trigger marketing SMS:', smsErr.message);
+                }
+            }
+
             await load();
             setModalItem(null);
         } catch (e: any) {
@@ -549,6 +573,28 @@ const MenuManagement = () => {
         setSaving(true);
         try {
             await menuService.update(discountModalItem.id, { discount_percent: discount });
+
+            // Trigger Discount Marketing SMS if a discount was added/increased
+            if (discount > (discountModalItem.discount_percent || 0)) {
+                try {
+                    console.log('Fetching customer phone numbers for discount marketing...');
+                    const phoneNumbers = await orderService.getAllCustomerPhones();
+
+                    if (phoneNumbers.length > 0) {
+                        const marketingResult = await smsService.sendDiscountNotification({
+                            phoneNumbers,
+                            itemName: discountModalItem.name,
+                            discountPercent: discount,
+                            originalPrice: discountModalItem.price,
+                            newPrice: Number((discountModalItem.price * (1 - discount / 100)).toFixed(0))
+                        });
+                        console.log(`Discount SMS triggered: ${marketingResult.sentCount} sent, ${marketingResult.failedCount} failed`);
+                    }
+                } catch (smsErr: any) {
+                    console.error('Failed to trigger discount SMS:', smsErr.message);
+                }
+            }
+
             await load();
             setDiscountModalItem(null);
         } catch (e: any) {
@@ -581,13 +627,13 @@ const MenuManagement = () => {
     };
 
     const bestSellers = calculateBestSellers(items, orders);
-    
+
     // Enhance items with computed best seller status
     const itemsWithBestSeller = items.map(item => ({
         ...item,
         is_best_seller: bestSellers.has(item.id)
     }));
-    
+
     const filtered = itemsWithBestSeller.filter((i) =>
         i.name.toLowerCase().includes(search.toLowerCase()) ||
         i.category.toLowerCase().includes(search.toLowerCase())

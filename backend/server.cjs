@@ -333,6 +333,123 @@ Thank you for dining with us! How was your experience? Rate us on the app!`;
   }
 });
 
+app.post("/api/sms/todays-special", async (req, res) => {
+  try {
+    if (!twilioClient) {
+      return res.status(500).json({
+        success: false,
+        error: 'Twilio not configured'
+      });
+    }
+
+    const { phoneNumbers, itemName, price, description } = req.body;
+
+    if (!phoneNumbers || !Array.isArray(phoneNumbers) || !itemName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: phoneNumbers (array), itemName'
+      });
+    }
+
+    console.log(`Sending Today's Special SMS to ${phoneNumbers.length} customers for ${itemName}`);
+
+    const results = await Promise.allSettled(
+      phoneNumbers.map(async (to) => {
+        const formattedPhone = formatPhoneNumber(to);
+        const message = `🌟 TODAY'S SPECIAL 🌟
+
+We're serving: ${itemName}
+${price ? `Price: ₹${price}` : ''}
+${description ? `Info: ${description}` : ''}
+
+Check it out on the app now! 😋`;
+
+        return twilioClient.messages.create({
+          body: message,
+          from: twilioPhoneNumber,
+          to: formattedPhone,
+        });
+      })
+    );
+
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
+
+    console.log(`Bulk SMS complete: ${successful} sent, ${failed} failed`);
+    res.json({
+      success: true,
+      sentCount: successful,
+      failedCount: failed
+    });
+
+  } catch (error) {
+    console.error('Failed to send marketing SMS:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.post("/api/sms/discount-alert", async (req, res) => {
+  try {
+    if (!twilioClient) {
+      return res.status(500).json({
+        success: false,
+        error: 'Twilio not configured'
+      });
+    }
+
+    const { phoneNumbers, itemName, discountPercent, originalPrice, newPrice } = req.body;
+
+    if (!phoneNumbers || !Array.isArray(phoneNumbers) || !itemName || !discountPercent) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: phoneNumbers, itemName, discountPercent'
+      });
+    }
+
+    console.log(`Sending Discount Alert SMS to ${phoneNumbers.length} customers for ${itemName}`);
+
+    const results = await Promise.allSettled(
+      phoneNumbers.map(async (to) => {
+        const formattedPhone = formatPhoneNumber(to);
+        const message = `🔥 MEGA DISCOUNT ALERT 🔥
+
+We've slashed the price on: ${itemName}
+Discount: ${discountPercent}% OFF!
+${originalPrice ? `Original: ₹${originalPrice}` : ''}
+${newPrice ? `SALE PRICE: ₹${newPrice}` : ''}
+
+Grab it now before it's gone! 🏃💨`;
+
+        return twilioClient.messages.create({
+          body: message,
+          from: twilioPhoneNumber,
+          to: formattedPhone,
+        });
+      })
+    );
+
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
+
+    console.log(`Discount bulk SMS complete: ${successful} sent, ${failed} failed`);
+    res.json({
+      success: true,
+      sentCount: successful,
+      failedCount: failed
+    });
+
+  } catch (error) {
+    console.error('Failed to send discount SMS:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Test SMS
 app.post("/api/sms/test", async (req, res) => {
   try {

@@ -90,6 +90,19 @@ export const orderService = {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, callback)
             .subscribe();
     },
+
+    getAllCustomerPhones: async (): Promise<string[]> => {
+        const { data, error } = await supabase
+            .from('orders')
+            .select('phone')
+            .not('phone', 'is', null);
+
+        if (error) throw error;
+
+        // Return unique phone numbers
+        const phones = data.map(o => o.phone).filter(Boolean) as string[];
+        return Array.from(new Set(phones));
+    },
 };
 
 export interface MenuItem {

@@ -7,7 +7,11 @@ import { BestSellers } from '@/components/food/BestSellers';
 import { TodaySpecials } from '@/components/food/TodaySpecials';
 import { CartDrawer } from '@/components/food/CartDrawer';
 import { useMenuItems } from '@/hooks/useMenu';
-import { Clock, Lightbulb, Loader2 } from 'lucide-react';
+import { Clock, Lightbulb, Loader2, Sparkles } from 'lucide-react';
+import { orderService, authService, recommendationService } from '@/services/supabase';
+import { geminiService } from '@/services/gemini';
+import { MenuItem } from '@/types/food';
+import { useEffect } from 'react';
 
 
 const HomePage = () => {
@@ -16,6 +20,71 @@ const HomePage = () => {
   const [cartOpen, setCartOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { items: menuItems, loading } = useMenuItems();
+  const [recommendations, setRecommendations] = useState<MenuItem[]>([]);
+  const [recommendationsLoading, setRecommendationsLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      try {
+        console.log("Fetching recommendations...");
+        const user = await authService.getCurrentUser();
+        if (!user) return;
+
+        setRecommendationsLoading(true);
+
+        // Try to get recommendations from Gemini first
+        try {
+          const orders = await orderService.getUserOrders(user.id);
+
+          // Extract unique item names from order history
+          const historyNames = Array.from(new Set(
+            orders.flatMap(order =>
+              (order.order_items || []).map((oi: any) => oi.menu_item_data?.name)
+            )
+          )).filter(Boolean) as string[];
+
+          // Available menu item names
+          const availableNames = menuItems.map(item => item.name);
+
+          if (availableNames.length > 0) {
+            const recommendedNames = await geminiService.getPersonalizedRecommendations(historyNames, availableNames);
+
+            if (recommendedNames.length > 0) {
+              // Save to Supabase for future fallback
+              await recommendationService.saveUserRecommendations(user.id, recommendedNames);
+
+              // Map recommended names back to MenuItems
+              const recommendedItems = recommendedNames
+                .map(name => menuItems.find(item => item.name === name))
+                .filter(Boolean) as MenuItem[];
+
+              setRecommendations(recommendedItems);
+              return; // Success
+            }
+          }
+        } catch (geminiError) {
+          console.error("Gemini recommendation failed, falling back to database:", geminiError);
+        }
+
+        // Fallback: Fetch from stored recommendations in Supabase
+        const storedNames = await recommendationService.getStoredRecommendations(user.id);
+        if (storedNames.length > 0) {
+          const fallbackItems = storedNames
+            .map(name => menuItems.find(item => item.name === name))
+            .filter(Boolean) as MenuItem[];
+          setRecommendations(fallbackItems);
+        }
+      } catch (error) {
+        console.error("Error in fetchRecommendations:", error);
+      } finally {
+        setRecommendationsLoading(false);
+      }
+    };
+
+    if (menuItems.length > 0) {
+      fetchRecommendations();
+    }
+  }, [menuItems]);
 
   // Derive categories dynamically from the live items
   const categories = useMemo(() => {
@@ -74,6 +143,37 @@ const HomePage = () => {
 
         {/* Today's Specials */}
         <TodaySpecials items={menuItems} />
+
+        {/* Personalized Recommendations */}
+        {(recommendationsLoading || recommendations.length > 0) && (
+          <section className="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div className="flex items-center gap-2 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h2 className="font-display font-bold text-2xl">Recommended for You</h2>
+                <p className="text-muted-foreground text-sm">
+                  {recommendationsLoading ? "Analyzing your taste..." : "Based on your order history"}
+                </p>
+              </div>
+            </div>
+
+            {recommendationsLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={`skeleton-${i}`} className="h-64 rounded-2xl bg-muted animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {recommendations.map((item) => (
+                  <MenuCard key={`rec-${item.id}`} item={item} />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Idle Time Suggestion */}
         <div className="bg-secondary/10 border border-secondary/20 rounded-2xl p-4 mb-8 flex items-start gap-3">

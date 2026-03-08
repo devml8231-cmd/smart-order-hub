@@ -554,3 +554,33 @@ export const ratingService = {
         return !!data;
     },
 };
+// Recommendation helpers
+export const recommendationService = {
+  // Save recommendations for a user
+  saveUserRecommendations: async (userId: string, recommendations: string[]) => {
+    const { data, error } = await supabase
+      .from('user_recommendations')
+      .upsert({
+        user_id: userId,
+        recommendations: recommendations,
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Get stored recommendations for a user
+  getStoredRecommendations: async (userId: string): Promise<string[]> => {
+    const { data, error } = await supabase
+      .from('user_recommendations')
+      .select('recommendations')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data?.recommendations || [];
+  }
+};

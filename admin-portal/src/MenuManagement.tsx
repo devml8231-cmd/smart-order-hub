@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Pencil, Trash2, Loader2, ImagePlus, ToggleLeft, ToggleRight, X, Search, Tag, Settings2 } from 'lucide-react';
-import { menuService, MenuItem } from './lib/supabase';
+import { menuService, MenuItem, orderService, Order } from './lib/supabase';
 import { cn } from './lib/utils';
 import { CustomizationManager } from './components/CustomizationManager';
 
@@ -301,7 +301,6 @@ const ItemModal = ({
                         {([
                             { key: 'is_veg', label: '🥦 Vegetarian' },
                             { key: 'is_available', label: '✅ Available' },
-                            { key: 'is_best_seller', label: '🔥 Best Seller' },
                             { key: 'is_today_special', label: '✨ Today\'s Special' },
                         ] as { key: keyof typeof form; label: string }[]).map(({ key, label }) => (
                             <button
@@ -439,8 +438,48 @@ const DiscountModal = ({
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
+// Helper to calculate best sellers based on order data
+const calculateBestSellers = (items: MenuItem[], orders: Order[]): Set<string> => {
+    if (!orders.length) {
+        return new Set();
+    }
+    
+    // Count quantity sold per menu item
+    const salesCount: Record<string, number> = {};
+    orders.forEach(order => {
+        order.order_items?.forEach(oi => {
+            salesCount[oi.menu_item_id] = (salesCount[oi.menu_item_id] || 0) + oi.quantity;
+        });
+    });
+    
+    if (Object.keys(salesCount).length === 0) {
+        return new Set();
+    }
+    
+    // Find the max sales count
+    const maxSales = Math.max(...Object.values(salesCount));
+    
+    if (maxSales === 0) {
+        return new Set();
+    }
+    
+    // Items with sales >= 80% of max are considered best sellers
+    const threshold = maxSales * 0.8;
+    
+    const bestSellers = new Set<string>();
+    
+    Object.entries(salesCount).forEach(([itemId, count]) => {
+        if (count >= threshold) {
+            bestSellers.add(itemId);
+        }
+    });
+    
+    return bestSellers;
+};
+
 const MenuManagement = () => {
     const [items, setItems] = useState<MenuItem[]>([]);
+    const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [modalItem, setModalItem] = useState<MenuItem | 'new' | null>(null);
@@ -460,8 +499,12 @@ const MenuManagement = () => {
     const load = async () => {
         try {
             setLoading(true);
-            const data = await menuService.getAll();
-            setItems(data);
+            const [menuData, ordersData] = await Promise.all([
+                menuService.getAll(),
+                orderService.getAllOrders()
+            ]);
+            setItems(menuData);
+            setOrders(ordersData);
             setError(null);
         } catch (e: any) {
             setError(e.message || 'Failed to load menu items');
@@ -481,7 +524,7 @@ const MenuManagement = () => {
                 price: parseFloat(formData.price),
                 category: formData.category,
                 is_veg: formData.is_veg,
-                is_best_seller: formData.is_best_seller,
+                is_best_seller: false,
                 is_today_special: formData.is_today_special,
                 is_available: formData.is_available,
                 prep_time_minutes: parseInt(formData.prep_time_minutes) || 15,
@@ -537,7 +580,15 @@ const MenuManagement = () => {
         }
     };
 
-    const filtered = items.filter((i) =>
+    const bestSellers = calculateBestSellers(items, orders);
+    
+    // Enhance items with computed best seller status
+    const itemsWithBestSeller = items.map(item => ({
+        ...item,
+        is_best_seller: bestSellers.has(item.id)
+    }));
+    
+    const filtered = itemsWithBestSeller.filter((i) =>
         i.name.toLowerCase().includes(search.toLowerCase()) ||
         i.category.toLowerCase().includes(search.toLowerCase())
     );
@@ -567,7 +618,8 @@ const MenuManagement = () => {
             {/* Stats row */}
             <div className="flex flex-wrap gap-3 mb-6">
                 {[
-                    { label: 'Total Items', value: items.length, color: 'text-orange-500' },
+                    { label: 'Total Items', value: items.length, color: 'text-blue-500' },
+                    { label: 'Best Sellers', value: itemsWithBestSeller.filter(i => i.is_best_seller).length, color: 'text-orange-500' },
                     { label: 'Available', value: items.filter(i => i.is_available).length, color: 'text-green-500' },
                     { label: 'Unavailable', value: items.filter(i => !i.is_available).length, color: 'text-gray-400' },
                 ].map(({ label, value, color }) => (

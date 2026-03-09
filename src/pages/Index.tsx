@@ -200,10 +200,7 @@ const HomePage = () => {
         <section ref={menuRef} id="menu" className="scroll-mt-20">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-display font-bold text-2xl">Full Menu</h2>
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Clock className="w-4 h-4" />
-              <span>Open until 8:00 PM</span>
-            </div>
+            
           </div>
 
           {/* Categories */}

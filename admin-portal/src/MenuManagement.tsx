@@ -643,15 +643,7 @@ const MenuManagement = () => {
         <div>
             {/* Toolbar */}
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-                <div className="relative flex-1 min-w-0 max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search items..."
-                        className="w-full pl-9 pr-4 py-2.5 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-300 bg-white"
-                    />
-                </div>
+                
                 <button
                     onClick={() => setModalItem('new')}
                     className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold text-sm px-4 py-2.5 rounded-xl transition-colors shadow-sm"

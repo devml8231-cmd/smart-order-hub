@@ -248,26 +248,7 @@ const Reviews = () => {
     return (
         <div className="space-y-5">
             {/* Toolbar */}
-            <div className="flex items-center gap-3">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
-                    <input
-                        type="text"
-                        placeholder="Search food item…"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-                    />
-                </div>
-                <button
-                    onClick={fetchReviews}
-                    disabled={loading}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors disabled:opacity-50"
-                >
-                    <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
-                    Refresh
-                </button>
-            </div>
+            
 
             {/* Stats */}
             <StatsBar reviews={reviews} />

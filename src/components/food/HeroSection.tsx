@@ -38,17 +38,7 @@ export const HeroSection = ({ onExploreClick }: HeroSectionProps) => {
             No waiting, no hassle – just delicious food.
           </p>
 
-          {/* Stats */}
-          <div className="flex items-center gap-6 mb-8">
-            <div className="flex items-center gap-2 text-cream">
-              <Clock className="w-5 h-5 text-golden-amber" />
-              <span className="text-sm">Avg. 10 min prep</span>
-            </div>
-            <div className="flex items-center gap-2 text-cream">
-              <span className="text-2xl">🔥</span>
-              <span className="text-sm">50+ Orders Today</span>
-            </div>
-          </div>
+          
 
           {/* CTA */}
           <Button

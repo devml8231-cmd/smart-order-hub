@@ -8,6 +8,8 @@ const AIRecommendationEngine = require("./airecommendation.cjs");
 const { createClient } = require("@supabase/supabase-js");
 const Razorpay = require("razorpay");
 const { Twilio } = require("twilio");
+const { exec } = require("child_process");
+const path = require("path");
 require("dotenv").config({ path: "../.env" });
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -114,6 +116,98 @@ app.post("/recommend/feedback", (req, res) => {
     message: "Feedback recorded",
     stats: recommendationEngine.getStats()
   });
+});
+
+/* =========================
+   XGBOOST RECOMMENDATION
+========================= */
+app.post("/api/recommendations", async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: "userId is required" });
+    }
+
+
+    // 1. Fetch user orders and current menu
+    const [ordersRes, menuRes] = await Promise.all([
+      supabase.from("orders").select("order_items(menu_item_data)").eq("user_id", userId),
+      supabase.from("menu_items").select("name, is_available")
+    ]);
+
+    if (ordersRes.error) throw ordersRes.error;
+    if (menuRes.error) throw menuRes.error;
+
+    const orders = ordersRes.data || [];
+    const menuItems = menuRes.data || [];
+
+    // 2. Identify ordered items
+    const orderedItems = new Set();
+    orders.forEach(order => {
+      if (order.order_items) {
+        order.order_items.forEach(item => {
+          if (item.menu_item_data?.name) {
+            orderedItems.add(item.menu_item_data.name.toLowerCase());
+          }
+        });
+      }
+    });
+
+    // 3. Map to features (0 or 1)
+    // Features: [pizza_ordered, burger_ordered, pasta_ordered, 
+    //            pizza_available, burger_available, pasta_available]
+    const foodTypes = ["pizza", "burger", "pasta"];
+    const features = [];
+
+    // Ordered features
+    foodTypes.forEach(type => {
+      const wasOrdered = Array.from(orderedItems).some(name => name.includes(type)) ? 1 : 0;
+      features.push(wasOrdered);
+    });
+
+    // Available features
+    foodTypes.forEach(type => {
+      const isAvailable = menuItems.some(item =>
+        item.name.toLowerCase().includes(type) && item.is_available
+      ) ? 1 : 0;
+      features.push(isAvailable);
+    });
+
+
+    // 4. Call Python wrapper
+    const scriptPath = path.join(__dirname, "..", "recomendation", "predict_wrapper.py");
+    const cmd = `python "${scriptPath}" ${features.join(" ")}`;
+
+    exec(cmd, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Exec error: ${error.message}`);
+        return res.status(500).json({ error: "Execution failed" });
+      }
+      if (stderr) {
+        console.error(`Python stderr: ${stderr}`);
+      }
+
+      const predictionIndex = parseInt(stdout.trim());
+      if (isNaN(predictionIndex)) {
+        return res.status(500).json({ error: "Invalid prediction from model" });
+      }
+
+      const predictedName = foodTypes[predictionIndex];
+
+      // 5. Find the actual menu item objects matching the prediction
+      const recommendations = menuItems
+        .filter(item => item.name.toLowerCase().includes(predictedName) && item.is_available)
+        .slice(0, 2);
+
+      res.json({
+        recommendations: recommendations.map(r => r.name),
+        source: "xgboost"
+      });
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 const PORT = 3000;

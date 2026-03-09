@@ -13,7 +13,7 @@ export const geminiService = {
         try {
             // The user requested 'gemini-3-flash-preview', but since that isn't available yet,
             // we'll use 'gemini-1.5-flash' which is the current state-of-the-art flash model.
-            const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
             const prompt = `
         User's Order History: ${orderHistoryNames.join(", ") || "No previous orders"}

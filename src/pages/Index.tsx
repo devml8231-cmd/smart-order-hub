@@ -12,6 +12,7 @@ import { orderService, authService, recommendationService } from '@/services/sup
 import { geminiService } from '@/services/gemini';
 import { MenuItem } from '@/types/food';
 import { useEffect } from 'react';
+import { xgboostService } from '@/services/xgboost';
 
 
 const HomePage = () => {
@@ -32,7 +33,13 @@ const HomePage = () => {
 
         setRecommendationsLoading(true);
 
-        // Try to get recommendations from Gemini first
+        // Fetch recommendations from XGBoost in the background (code present as requested)
+        try {
+          await xgboostService.getRecommendations(user.id);
+        } catch (xgBoostError) {
+          console.error("XGBoost background fetch failed:", xgBoostError);
+        }
+
         try {
           const orders = await orderService.getUserOrders(user.id);
 

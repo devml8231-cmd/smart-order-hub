@@ -3,6 +3,7 @@
 const express = require("express");
 const cors = require("cors");
 const HybridScheduler = require("./scheduler.cjs");
+const MarketingScheduler = require("./marketing-scheduler.cjs");
 const AIRecommendationEngine = require("./airecommendation.cjs");
 const { createClient } = require("@supabase/supabase-js");
 const Razorpay = require("razorpay");
@@ -31,7 +32,14 @@ const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
+
 const twilioClient = accountSid && authToken ? new Twilio(accountSid, authToken) : null;
+
+// Initialize Marketing Scheduler
+const marketingScheduler = twilioClient ? new MarketingScheduler(supabase, twilioClient, twilioPhoneNumber) : null;
+if (marketingScheduler) {
+  marketingScheduler.start();
+}
 
 // Helper function to format phone number
 const formatPhoneNumber = (phone) => {
@@ -373,13 +381,16 @@ Check it out on the app now! 😋`;
     );
 
     const successful = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.filter(r => r.status === 'rejected').length;
+    const failed = results.filter(r => r.status === 'rejected');
 
-    console.log(`Bulk SMS complete: ${successful} sent, ${failed} failed`);
+    // Log each failure reason
+    failed.forEach((r, i) => console.error(`  Today's Special fail #${i + 1}:`, r.reason?.message));
+
+    console.log(`Bulk SMS complete: ${successful} sent, ${failed.length} failed`);
     res.json({
       success: true,
       sentCount: successful,
-      failedCount: failed
+      failedCount: failed.length
     });
 
   } catch (error) {
@@ -432,23 +443,24 @@ Grab it now before it's gone! 🏃💨`;
     );
 
     const successful = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.filter(r => r.status === 'rejected').length;
+    const failed = results.filter(r => r.status === 'rejected');
 
-    console.log(`Discount bulk SMS complete: ${successful} sent, ${failed} failed`);
+    failed.forEach((r, i) => console.error(`  Discount fail #${i + 1}:`, r.reason?.message));
+
+    console.log(`Discount Bulk SMS complete: ${successful} sent, ${failed.length} failed`);
     res.json({
       success: true,
       sentCount: successful,
-      failedCount: failed
+      failedCount: failed.length
     });
 
   } catch (error) {
     console.error('Failed to send discount SMS:', error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
+
+
 
 // Test SMS
 app.post("/api/sms/test", async (req, res) => {
@@ -489,6 +501,75 @@ SMS notifications are working correctly!`;
       success: false,
       error: error.message
     });
+  }
+});
+
+app.post("/api/sms/execute-scheduled-blast", async (req, res) => {
+  try {
+    if (!marketingScheduler) {
+      return res.status(500).json({ error: 'Marketing scheduler not initialized' });
+    }
+
+    console.log('[Cron] Manual blast trigger received');
+    await marketingScheduler.checkAndSend();
+    res.json({ success: true, message: 'Blast check completed' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Marketing Settings
+app.get("/api/marketing/settings", async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("marketing_settings")
+      .select("*")
+      .single();
+
+    if (error && error.code !== "PGRST116") {
+      throw error;
+    }
+
+    res.json(data || { daily_notification_time: "12:00:00", is_enabled: false });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/marketing/settings", async (req, res) => {
+  try {
+    const { daily_notification_time, is_enabled } = req.body;
+
+    // Try to update the first row
+    const { data: existing } = await supabase.from("marketing_settings").select("id").limit(1).single();
+
+    let result;
+    if (existing) {
+      result = await supabase
+        .from("marketing_settings")
+        .update({
+          daily_notification_time,
+          is_enabled,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id)
+        .select()
+        .single();
+    } else {
+      result = await supabase
+        .from("marketing_settings")
+        .insert({
+          daily_notification_time,
+          is_enabled,
+        })
+        .select()
+        .single();
+    }
+
+    if (result.error) throw result.error;
+    res.json(result.data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

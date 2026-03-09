@@ -85,5 +85,32 @@ export const smsService = {
             console.error('Failed to send discount SMS:', error.message);
             return { success: false, sentCount: 0, failedCount: 0 };
         }
+    },
+
+    // Marketing Settings
+    getMarketingSettings: async () => {
+        try {
+            const response = await fetch(`${SMS_SERVICE_URL}/api/marketing/settings`);
+            return await response.json();
+        } catch (error: any) {
+            console.error('Failed to fetch marketing settings:', error.message);
+            return { daily_notification_time: '12:00:00', is_enabled: false };
+        }
+    },
+
+    updateMarketingSettings: async (settings: { daily_notification_time: string; is_enabled: boolean }) => {
+        try {
+            const response = await fetch(`${SMS_SERVICE_URL}/api/marketing/settings`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(settings),
+            });
+            return await response.json();
+        } catch (error: any) {
+            console.error('Failed to update marketing settings:', error.message);
+            return null;
+        }
     }
 };

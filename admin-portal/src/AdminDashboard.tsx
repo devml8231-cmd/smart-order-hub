@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
     ShoppingBag, RefreshCw, Loader2, ChevronDown,
-    BarChart3, Clock, CheckCircle2,
-    XCircle, ChefHat, Timer, Bell, UtensilsCrossed,
-    UserCircle, Users, Star
+    BarChart3, Clock, CheckCircle2, XCircle,
+    ChefHat, Timer, Bell, UtensilsCrossed,
+    UserCircle, Users, Star, Sparkles
 } from 'lucide-react';
 import { cn, formatDate } from './lib/utils';
 import { orderService, Order, Chef, chefService } from './lib/supabase';
@@ -11,6 +11,7 @@ import { useAllOrders } from './hooks/useAllOrders';
 import MenuManagement from './MenuManagement';
 import ChefManagement from './ChefManagement';
 import Reviews from './Reviews';
+import { MarketingSettings } from './components/MarketingSettings';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS = ['PLACED', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'] as const;
@@ -207,7 +208,7 @@ const AdminDashboard = () => {
     const [chefs, setChefs] = useState<Chef[]>([]);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [filterStatus, setFilterStatus] = useState<string>('ALL');
-    const [activeTab, setActiveTab] = useState<'orders' | 'stats' | 'menu' | 'chefs' | 'reviews'>('orders');
+    const [activeTab, setActiveTab] = useState<'orders' | 'stats' | 'menu' | 'chefs' | 'reviews' | 'marketing'>('orders');
 
     const fetchChefs = useCallback(async () => {
         try {
@@ -288,6 +289,7 @@ const AdminDashboard = () => {
                         { id: 'menu' as const, label: 'Menu', icon: UtensilsCrossed },
                         { id: 'chefs' as const, label: 'Staff', icon: UserCircle },
                         { id: 'reviews' as const, label: 'Reviews', icon: Star },
+                        { id: 'marketing' as const, label: 'Marketing', icon: Sparkles },
                         { id: 'stats' as const, label: 'Analytics', icon: BarChart3 },
                     ]).map(({ id, label, icon: Icon }) => (
                         <button
@@ -377,6 +379,11 @@ const AdminDashboard = () => {
                 {/* ── Reviews Tab ── */}
                 {activeTab === 'reviews' && (
                     <Reviews />
+                )}
+
+                {/* ── Marketing Tab ── */}
+                {activeTab === 'marketing' && (
+                    <MarketingSettings />
                 )}
 
                 {/* ── Stats Tab ── */}

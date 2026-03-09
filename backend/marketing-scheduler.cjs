@@ -1,5 +1,7 @@
 // marketing-scheduler.cjs
 
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
 const MOOD_TEMPLATES = [
     {
         mood: 'stressed',
@@ -29,6 +31,7 @@ class MarketingScheduler {
         this.twilioClient = twilioClient;
         this.twilioPhoneNumber = twilioPhoneNumber;
         this.interval = null;
+        this.genAI = process.env.VITE_GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.VITE_GEMINI_API_KEY) : null;
     }
 
     start() {
@@ -41,6 +44,42 @@ class MarketingScheduler {
 
     stop() {
         if (this.interval) clearInterval(this.interval);
+    }
+
+    async getGeminiRecommendation(menuItems, mood = null) {
+        if (!this.genAI) {
+            console.log('[Marketing] Gemini AI not configured (missing VITE_GEMINI_API_KEY in .env)');
+            return null;
+        }
+
+        try {
+            const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+            
+            const menuList = menuItems.map(item => `${item.name} (${item.category})`).join(', ');
+            const moodContext = mood ? `for someone feeling ${mood}` : 'for general marketing';
+            
+            const prompt = `You are a marketing assistant for QuickBite food delivery app. 
+Create a short, engaging SMS marketing message (under 160 characters) ${moodContext}.
+Available menu items: ${menuList}
+Guidelines:
+- Keep it fun and casual
+- Include 1-2 relevant emojis
+- Mention a specific item from the menu
+- End with a call to action
+- Make it sound personal and mood-appropriate
+- Do NOT include quotes in your response`;
+
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const message = response.text().trim();
+            
+            console.log(`[Marketing] Gemini AI generated recommendation: "${message}"`);
+            return message;
+            
+        } catch (error) {
+            console.error('[Marketing] Gemini AI recommendation failed:', error.message);
+            return null;
+        }
     }
 
     async checkAndSend() {
@@ -140,11 +179,25 @@ class MarketingScheduler {
             if (!selectedItem) {
                 selectedItem = menu[Math.floor(Math.random() * menu.length)];
             }
+            const traditionalMessage = template.text.replace('{item}', selectedItem.name);
 
-            const message = template.text.replace('{item}', selectedItem.name);
-            console.log(`[Marketing] Sending blast: "${message}" to ${phones.length} customers`);
+            // 5. Try Gemini AI Recommendation
+            let message = traditionalMessage;
+            let messageSource = 'Traditional Template';
+            
+            try {
+                const geminiMessage = await this.getGeminiRecommendation(menu, template.mood);
+                if (geminiMessage) {
+                    message = geminiMessage;
+                    messageSource = 'Gemini AI';
+                }
+            } catch (error) {
+                console.log('[Marketing] Using traditional template as fallback');
+            }
 
-            // 5. Bulk send using Promise.allSettled
+            console.log(`[Marketing] Sending blast (${messageSource}): "${message}" to ${phones.length} customers`);
+
+            // 6. Bulk send using Promise.allSettled
             const results = await Promise.allSettled(
                 phones.map(phone => {
                     const formattedPhone = phone.startsWith('+91') ? phone : `+91${phone}`;
@@ -160,7 +213,7 @@ class MarketingScheduler {
             const failed = results.filter(r => r.status === 'rejected').length;
             console.log(`[Marketing] Blast complete: ${successful} sent, ${failed} failed.`);
 
-            // 6. Update last_sent_at
+            // 7. Update last_sent_at
             await this.supabase
                 .from('marketing_settings')
                 .update({ last_sent_at: new Date().toISOString() })

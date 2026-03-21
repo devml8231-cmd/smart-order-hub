@@ -232,6 +232,49 @@ const AdminDashboard = () => {
     const activeCount = orders.filter((o) => ['PLACED', 'PREPARING', 'READY'].includes(o.status)).length;
     const completedRevenue = orders.filter((o) => o.status === 'COMPLETED').reduce((s, o) => s + o.total_amount, 0);
 
+    // ── Analytics date filter ──────────────────────────────────────────────────
+    const [dateRange, setDateRange] = useState<'today' | 'yesterday' | 'week' | 'month' | 'custom'>('today');
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const [customFrom, setCustomFrom] = useState(todayStr);
+    const [customTo, setCustomTo] = useState(todayStr);
+
+    const getDateBounds = () => {
+        const now = new Date();
+        const start = new Date();
+        if (dateRange === 'today') {
+            start.setHours(0, 0, 0, 0);
+            return { start, end: now };
+        } else if (dateRange === 'yesterday') {
+            start.setDate(now.getDate() - 1);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(start);
+            end.setHours(23, 59, 59, 999);
+            return { start, end };
+        } else if (dateRange === 'week') {
+            start.setDate(now.getDate() - 6);
+            start.setHours(0, 0, 0, 0);
+            return { start, end: now };
+        } else if (dateRange === 'month') {
+            start.setDate(now.getDate() - 29);
+            start.setHours(0, 0, 0, 0);
+            return { start, end: now };
+        } else {
+            const s = new Date(customFrom);
+            s.setHours(0, 0, 0, 0);
+            const e = new Date(customTo);
+            e.setHours(23, 59, 59, 999);
+            return { start: s, end: e };
+        }
+    };
+
+    const { start: rangeStart, end: rangeEnd } = getDateBounds();
+    const analyticsOrders = orders.filter((o) => {
+        const t = new Date(o.created_at).getTime();
+        return t >= rangeStart.getTime() && t <= rangeEnd.getTime();
+    });
+    const analyticsRevenue = analyticsOrders.filter((o) => o.status === 'COMPLETED').reduce((s, o) => s + o.total_amount, 0);
+    const analyticsActive = analyticsOrders.filter((o) => ['PLACED', 'PREPARING', 'READY'].includes(o.status)).length;
+
     const handleStatusChange = async (orderId: string, newStatus: string) => {
         setUpdatingId(orderId);
         try {
@@ -389,11 +432,61 @@ const AdminDashboard = () => {
                 {/* ── Stats Tab ── */}
                 {activeTab === 'stats' && (
                     <div className="space-y-6">
+                        {/* Date filter pills */}
+                        <div className="flex flex-wrap items-center gap-2">
+                            {([
+                                { id: 'today', label: 'Today' },
+                                { id: 'yesterday', label: 'Yesterday' },
+                                { id: 'week', label: 'Last 7 Days' },
+                                { id: 'month', label: 'Last 30 Days' },
+                                { id: 'custom', label: 'Custom' },
+                            ] as const).map(({ id, label }) => (
+                                <button
+                                    key={id}
+                                    onClick={() => setDateRange(id)}
+                                    className={cn(
+                                        'px-4 py-1.5 rounded-full text-sm font-medium border transition-all',
+                                        dateRange === id
+                                            ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+                                            : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'
+                                    )}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Custom date range inputs */}
+                        {dateRange === 'custom' && (
+                            <div className="flex flex-wrap items-center gap-3 bg-white border rounded-2xl px-5 py-4 shadow-sm">
+                                <span className="text-sm font-medium text-gray-500">From</span>
+                                <input
+                                    type="date"
+                                    value={customFrom}
+                                    max={customTo}
+                                    onChange={(e) => setCustomFrom(e.target.value)}
+                                    className="border border-gray-200 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/30"
+                                />
+                                <span className="text-sm font-medium text-gray-500">To</span>
+                                <input
+                                    type="date"
+                                    value={customTo}
+                                    min={customFrom}
+                                    max={todayStr}
+                                    onChange={(e) => setCustomTo(e.target.value)}
+                                    className="border border-gray-200 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400/30"
+                                />
+                                <span className="text-xs text-gray-400 ml-1">
+                                    {analyticsOrders.length} order{analyticsOrders.length !== 1 ? 's' : ''} found
+                                </span>
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             {[
-                                { label: 'Total Orders', value: orders.length, color: 'text-orange-500' },
-                                { label: 'Revenue (Completed)', value: `₹${completedRevenue.toFixed(0)}`, color: 'text-green-500' },
-                                { label: 'Active Right Now', value: activeCount, color: 'text-blue-500' },
+                                { label: 'Total Orders', value: analyticsOrders.length, color: 'text-orange-500' },
+                                { label: 'Revenue (Completed)', value: `₹${analyticsRevenue.toFixed(0)}`, color: 'text-green-500' },
+                                { label: 'Active Orders', value: analyticsActive, color: 'text-blue-500' },
                             ].map(({ label, value, color }) => (
                                 <div key={label} className="bg-white rounded-2xl border p-6 text-center shadow-sm">
                                     <p className={cn('text-4xl font-bold', color)}>{value}</p>
@@ -406,8 +499,8 @@ const AdminDashboard = () => {
                             <h3 className="font-semibold text-gray-700 mb-5">Status Breakdown</h3>
                             <div className="space-y-4">
                                 {STATUS_OPTIONS.map((s) => {
-                                    const count = orders.filter((o) => o.status === s).length;
-                                    const pct = orders.length ? (count / orders.length) * 100 : 0;
+                                    const count = analyticsOrders.filter((o) => o.status === s).length;
+                                    const pct = analyticsOrders.length ? (count / analyticsOrders.length) * 100 : 0;
                                     const cfg = statusConfig[s];
                                     return (
                                         <div key={s} className="flex items-center gap-4">

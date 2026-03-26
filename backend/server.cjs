@@ -676,7 +676,89 @@ app.get("/api/sms/health", (req, res) => {
   });
 });
 
+/* =========================
+   PRE-ORDER PROCESSOR
+   Runs every 60s — finds pre-orders whose scheduled_at has passed,
+   marks them READY, and sends the "order ready" SMS.
+========================= */
+const processPreOrders = async () => {
+  try {
+    const now = new Date().toISOString();
+    console.log(`[PreOrder] Checking at ${now}`);
+
+    // First check if scheduled_at column exists by doing a safe query
+    const { data: dueOrders, error } = await supabase
+      .from('orders')
+      .select('id, token_number, phone, scheduled_at, status')
+      .not('scheduled_at', 'is', null)
+      .lte('scheduled_at', now)
+      .in('status', ['PLACED', 'PREPARING']);
+
+    if (error) {
+      console.error('[PreOrder] Fetch error:', error.message, '— Did you run database/add_preorder_column.sql?');
+      return;
+    }
+
+    console.log(`[PreOrder] Due orders found: ${dueOrders?.length ?? 0}`);
+    if (dueOrders?.length) console.log('[PreOrder] Orders:', JSON.stringify(dueOrders));
+
+    if (!dueOrders || dueOrders.length === 0) return;
+
+    for (const order of dueOrders) {
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({ status: 'READY', updated_at: new Date().toISOString() })
+        .eq('id', order.id);
+
+      if (updateError) {
+        console.error(`[PreOrder] Failed to update order ${order.id}:`, updateError.message);
+        continue;
+      }
+
+      console.log(`[PreOrder] Order ${order.id} (Token #${order.token_number}) → READY`);
+
+      if (order.phone && twilioClient) {
+        try {
+          const formattedPhone = formatPhoneNumber(order.phone);
+          await twilioClient.messages.create({
+            body: `🎉 Your QuickBite pre-order is ready!\n📋 Token: #${order.token_number}\nPlease collect your order from the counter. Enjoy your meal!`,
+            from: twilioPhoneNumber,
+            to: formattedPhone,
+          });
+          console.log(`[PreOrder] SMS sent to ${order.phone} for token #${order.token_number}`);
+        } catch (smsErr) {
+          console.error(`[PreOrder] SMS failed for order ${order.id}:`, smsErr.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[PreOrder] Unexpected error:', err.message);
+  }
+};
+
+// Manual trigger endpoint — hit GET /api/preorder/process to run immediately
+app.get('/api/preorder/process', async (req, res) => {
+  await processPreOrders();
+  res.json({ success: true, message: 'Pre-order processing triggered', time: new Date().toISOString() });
+});
+
+// Debug endpoint — shows all pending pre-orders and current server time
+app.get('/api/preorder/debug', async (req, res) => {
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id, token_number, status, scheduled_at, phone')
+    .not('scheduled_at', 'is', null)
+    .order('scheduled_at', { ascending: true });
+  res.json({ serverTime: now, orders: data, error: error?.message });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Twilio configured: ${!!twilioClient}`);
+
+  // Start pre-order processor after server is ready
+  console.log('[PreOrder] Processor starting...');
+  processPreOrders();
+  setInterval(processPreOrders, 60 * 1000);
 });

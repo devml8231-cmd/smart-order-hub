@@ -6,11 +6,12 @@ import { Header } from '@/components/food/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, CreditCard, Smartphone, AlertCircle, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, CreditCard, Smartphone, AlertCircle, ShieldCheck, CalendarClock, Zap } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { orderService } from '@/services/supabase';
 import { razorpayService } from '@/services/razorpay';
 import { smsService } from '@/services/sms';
+import { cn } from '@/lib/utils';
 
 const CheckoutPage = () => {
   const navigate = useNavigate();
@@ -18,6 +19,14 @@ const CheckoutPage = () => {
   const { user } = useAuth();
   const [phone, setPhone] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [orderType, setOrderType] = useState<'now' | 'scheduled'>('now');
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTime, setScheduledTime] = useState('');
+
+  const getScheduledAt = (): Date | undefined => {
+    if (orderType !== 'scheduled' || !scheduledDate || !scheduledTime) return undefined;
+    return new Date(`${scheduledDate}T${scheduledTime}`);
+  };
 
   const total = totalAmount;
 
@@ -34,6 +43,15 @@ const CheckoutPage = () => {
     if (!user) {
       toast({ title: 'Not signed in', variant: 'destructive' });
       return;
+    }
+
+    // Validate scheduled time
+    const scheduledAt = getScheduledAt();
+    if (orderType === 'scheduled') {
+      if (!scheduledDate || !scheduledTime) {
+        toast({ title: 'Pick a schedule time', description: 'Please select both date and time for your pre-order.', variant: 'destructive' });
+        return;
+      }
     }
 
     setIsProcessing(true);
@@ -68,15 +86,27 @@ const CheckoutPage = () => {
       }
 
       // 2. Payment succeeded – create order in database
-      const waitMinutes = await orderService.calculateWaitTime(items);
-      const estimatedReadyAt = new Date(Date.now() + waitMinutes * 60000);
+      const scheduledAt = getScheduledAt();
+      let waitMinutes: number;
+      let estimatedReadyAt: Date;
+
+      if (scheduledAt) {
+        // For pre-orders, estimated ready = scheduled time + prep time
+        const prepMinutes = await orderService.calculateWaitTime(items);
+        estimatedReadyAt = new Date(scheduledAt.getTime() + prepMinutes * 60000);
+        waitMinutes = Math.round((scheduledAt.getTime() - Date.now()) / 60000);
+      } else {
+        waitMinutes = await orderService.calculateWaitTime(items);
+        estimatedReadyAt = new Date(Date.now() + waitMinutes * 60000);
+      }
 
       const order = await orderService.createOrder(
         user.id,
         total,
         phone,
         estimatedReadyAt,
-        paymentResult.razorpay_payment_id  // pass payment ID for record
+        paymentResult.razorpay_payment_id,
+        scheduledAt,
       );
 
       await orderService.createOrderItems(
@@ -126,7 +156,8 @@ const CheckoutPage = () => {
           total,
           items: items.length,
           paymentId: paymentResult.razorpay_payment_id,
-          waitTime: waitMinutes,
+          waitTime: scheduledAt ? null : waitMinutes,
+          scheduledAt: scheduledAt ? scheduledAt.toISOString() : null,
         },
       });
     } catch (error: any) {
@@ -194,6 +225,72 @@ const CheckoutPage = () => {
           </div>
         </div>
 
+        {/* Order Timing */}
+        <div className="bg-card rounded-2xl border p-6 mb-6">
+          <h3 className="font-semibold mb-4">When do you want it?</h3>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <button
+              onClick={() => setOrderType('now')}
+              className={cn(
+                'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all',
+                orderType === 'now'
+                  ? 'border-primary bg-primary/5 text-primary'
+                  : 'border-border text-muted-foreground hover:border-primary/40'
+              )}
+            >
+              <Zap className="w-5 h-5" />
+              <span className="text-sm font-semibold">Order Now</span>
+              <span className="text-xs opacity-70">Ready ASAP</span>
+            </button>
+            <button
+              onClick={() => setOrderType('scheduled')}
+              className={cn(
+                'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all',
+                orderType === 'scheduled'
+                  ? 'border-primary bg-primary/5 text-primary'
+                  : 'border-border text-muted-foreground hover:border-primary/40'
+              )}
+            >
+              <CalendarClock className="w-5 h-5" />
+              <span className="text-sm font-semibold">Schedule</span>
+              <span className="text-xs opacity-70">Pick a time</span>
+            </button>
+          </div>
+
+          {orderType === 'scheduled' && (
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              <div>
+                <Label htmlFor="sched-date">Date</Label>
+                <Input
+                  id="sched-date"
+                  type="date"
+                  value={scheduledDate}
+                  onChange={(e) => setScheduledDate(e.target.value)}
+                  className="mt-1.5"
+                />
+              </div>
+              <div>
+                <Label htmlFor="sched-time">Time</Label>
+                <Input
+                  id="sched-time"
+                  type="time"
+                  value={scheduledTime}
+                  onChange={(e) => setScheduledTime(e.target.value)}
+                  className="mt-1.5"
+                />
+              </div>
+              {scheduledDate && scheduledTime && (
+                <p className="col-span-2 text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
+                  🕐 Your order will be prepared and ready around{' '}
+                  <span className="font-semibold text-foreground">
+                    {new Date(`${scheduledDate}T${scheduledTime}`).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                  </span>
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Contact Info */}
         <div className="bg-card rounded-2xl border p-6 mb-6">
           <div className="flex items-center gap-2 mb-4">
@@ -251,7 +348,7 @@ const CheckoutPage = () => {
               Processing...
             </>
           ) : (
-            <>Pay ₹{total} via Razorpay</>
+            <>{orderType === 'scheduled' ? `Schedule & Pay ₹${total}` : `Pay ₹${total} via Razorpay`}</>
           )}
         </Button>
 

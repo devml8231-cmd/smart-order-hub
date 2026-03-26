@@ -105,6 +105,11 @@ const OrderCard = ({
                                 <ChefHat className="w-3 h-3" /> {assignedChef.name}
                             </span>
                         )}
+                        {order.scheduled_at && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 border border-purple-200 text-xs font-semibold">
+                                🗓 Pre-order · {new Date(order.scheduled_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}
+                            </span>
+                        )}
                     </div>
 
                     <p className="text-sm text-gray-400 mb-2">
@@ -127,8 +132,8 @@ const OrderCard = ({
                 <div className="flex flex-col items-end gap-2.5 shrink-0">
                     <p className="text-2xl font-bold text-gray-800">₹{order.total_amount}</p>
 
-                    {/* Countdown moved here */}
-                    {order.estimated_ready_at && ['PLACED', 'PREPARING'].includes(order.status) && (
+                    {/* Countdown — only for non-preorders */}
+                    {order.estimated_ready_at && !order.scheduled_at && ['PLACED', 'PREPARING'].includes(order.status) && (
                         <div className="flex items-center gap-2 mt-1">
                             <Timer className="w-3.5 h-3.5 text-orange-500" />
                             <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Ready in:</span>

@@ -308,11 +308,11 @@ export const orderService = {
     },
 
     // Create a new order and return it
-    createOrder: async (userId: string, totalAmount: number, phone: string, estimatedReadyAt?: Date, paymentId?: string) => {
+    createOrder: async (userId: string, totalAmount: number, phone: string, estimatedReadyAt?: Date, paymentId?: string, scheduledAt?: Date) => {
         const tokenNumber = Math.floor(1000 + Math.random() * 9000);
 
-        // Fetch available chefs to assign one automatically (same logic as wait calculation)
-        const bestChef = await orderService.pickBestChef();
+        // For pre-orders, don't assign a chef yet — assign when the order becomes active
+        const bestChef = scheduledAt ? null : await orderService.pickBestChef();
 
         const { data, error } = await supabase
             .from('orders')
@@ -324,7 +324,7 @@ export const orderService = {
                 phone,
                 chef_id: bestChef?.id || null,
                 estimated_ready_at: estimatedReadyAt ? estimatedReadyAt.toISOString() : null,
-                // payment_id is intentionally omitted — add the column to `orders` table if you want to persist it
+                scheduled_at: scheduledAt ? scheduledAt.toISOString() : null,
             })
             .select()
             .single();

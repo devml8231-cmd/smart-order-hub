@@ -270,11 +270,23 @@ const Orders = () => {
                       ))}
                     </div>
 
-                    {/* Countdown timer */}
-                    {(order.status === 'PREPARING' || order.status === 'PLACED') && order.estimated_ready_at && (
-                      <div className="mb-4">
-                        <CountdownTimer targetTime={order.estimated_ready_at} />
-                      </div>
+                    {/* Countdown timer / Pre-order schedule */}
+                    {(order.status === 'PREPARING' || order.status === 'PLACED') && (
+                      order.scheduled_at ? (
+                        <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-xl flex items-center gap-3">
+                          <span className="text-xl">🗓</span>
+                          <div>
+                            <p className="text-xs text-purple-600 font-medium">Pre-order scheduled for</p>
+                            <p className="font-semibold text-purple-800 text-sm">
+                              {new Date(order.scheduled_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                            </p>
+                          </div>
+                        </div>
+                      ) : order.estimated_ready_at ? (
+                        <div className="mb-4">
+                          <CountdownTimer targetTime={order.estimated_ready_at} />
+                        </div>
+                      ) : null
                     )}
 
                     {/* Ready message */}
@@ -287,8 +299,8 @@ const Orders = () => {
                       </div>
                     )}
 
-                    {/* Placed — waiting message */}
-                    {order.status === 'PLACED' && (
+                    {/* Placed — waiting message (only for non-preorders) */}
+                    {order.status === 'PLACED' && !order.scheduled_at && (
                       <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl flex items-center gap-3">
                         <div className="w-3 h-3 rounded-full bg-yellow-400 animate-pulse shrink-0" />
                         <p className="text-sm text-yellow-800">

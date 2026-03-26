@@ -34,6 +34,7 @@ export interface Order {
     created_at: string;
     updated_at: string;
     estimated_ready_at?: string;
+    scheduled_at?: string;
     chef_id?: string;
     order_items: OrderItem[];
 }

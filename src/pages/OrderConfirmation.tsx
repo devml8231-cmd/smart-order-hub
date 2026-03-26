@@ -6,7 +6,7 @@ import { toast } from '@/hooks/use-toast';
 const OrderConfirmation = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { token, total, items, waitTime } = location.state || {};
+  const { token, total, items, waitTime, scheduledAt } = location.state || {};
 
   if (!token) {
     navigate('/');
@@ -48,8 +48,18 @@ const OrderConfirmation = () => {
           </p>
         </div>
 
-        {/* Wait Time Card */}
-        {waitTime && (
+        {/* Wait Time / Schedule Card */}
+        {scheduledAt ? (
+          <div className="bg-purple-50 border border-purple-200 rounded-2xl p-6 mb-6 text-center animate-slide-up">
+            <p className="text-purple-600 text-sm mb-2">Pre-order Scheduled For</p>
+            <p className="font-display font-bold text-2xl text-purple-800">
+              {new Date(scheduledAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+            </p>
+            <p className="text-xs text-purple-500 mt-3">
+              The kitchen will start preparing your order at this time
+            </p>
+          </div>
+        ) : waitTime ? (
           <div className="bg-primary/5 border border-primary/10 rounded-2xl p-6 mb-6 text-center animate-slide-up">
             <p className="text-muted-foreground text-sm mb-2">Estimated Wait Time</p>
             <div className="flex items-center justify-center gap-2">
@@ -62,7 +72,7 @@ const OrderConfirmation = () => {
               We'll send an SMS when your order is ready for pickup
             </p>
           </div>
-        )}
+        ) : null}
 
         {/* Order Details */}
         <div className="bg-card rounded-2xl border p-6 mb-6 animate-slide-up">
@@ -77,11 +87,20 @@ const OrderConfirmation = () => {
           </div>
 
           {/* Status chip */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 flex items-center gap-3">
-            <div className="w-3 h-3 rounded-full bg-yellow-400 animate-pulse shrink-0" />
+          <div className={scheduledAt
+            ? "bg-purple-50 border border-purple-200 rounded-xl p-3 flex items-center gap-3"
+            : "bg-yellow-50 border border-yellow-200 rounded-xl p-3 flex items-center gap-3"
+          }>
+            <div className={`w-3 h-3 rounded-full shrink-0 ${scheduledAt ? 'bg-purple-400' : 'bg-yellow-400 animate-pulse'}`} />
             <div>
-              <p className="font-semibold text-sm text-yellow-800">Status: Placed</p>
-              <p className="text-xs text-yellow-700">We'll notify you when your order is being prepared</p>
+              <p className={`font-semibold text-sm ${scheduledAt ? 'text-purple-800' : 'text-yellow-800'}`}>
+                {scheduledAt ? 'Status: Pre-order Confirmed' : 'Status: Placed'}
+              </p>
+              <p className={`text-xs ${scheduledAt ? 'text-purple-700' : 'text-yellow-700'}`}>
+                {scheduledAt
+                  ? 'Kitchen will prepare your order at the scheduled time'
+                  : "We'll notify you when your order is being prepared"}
+              </p>
             </div>
           </div>
         </div>

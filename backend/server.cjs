@@ -17,7 +17,15 @@ const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: [
+    "http://localhost:8080",
+    "http://localhost:5174",
+    process.env.FRONTEND_URL,
+    process.env.ADMIN_URL,
+  ].filter(Boolean),
+  credentials: true,
+}));
 app.use(express.json());
 
 // Razorpay instance (uses test credentials from .env)
@@ -210,7 +218,7 @@ app.post("/api/recommendations", async (req, res) => {
   }
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 /* =========================
    DYNAMIC WAIT TIME ROUTE

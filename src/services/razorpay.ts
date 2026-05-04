@@ -9,7 +9,7 @@ declare global {
     }
 }
 
-const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'https://smart-order-hub.onrender.com';
 const RAZORPAY_KEY_ID = import.meta.env.VITE_RAZORPAY_KEY_ID as string;
 
 /** Dynamically loads the Razorpay checkout script */
@@ -56,7 +56,7 @@ export const razorpayService = {
             // 2. Create Razorpay order via backend
             let rzpOrder: { id: string; amount: number; currency: string };
             try {
-                const res = await fetch(`http://localhost:3000/api/payment/create-order`, {
+                const res = await fetch(`https://smart-order-hub.onrender.com/api/payment/create-order`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

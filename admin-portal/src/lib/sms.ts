@@ -1,5 +1,5 @@
 // SMS Service for Admin Portal
-const SMS_SERVICE_URL = import.meta.env.VITE_SMS_SERVICE_URL || 'http://localhost:3000';
+const SMS_SERVICE_URL = import.meta.env.VITE_SMS_SERVICE_URL || 'https://smart-order-hub.onrender.com';
 
 export const smsService = {
     // Send order ready notification

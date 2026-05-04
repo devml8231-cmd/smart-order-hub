@@ -538,7 +538,7 @@ const MenuManagement = () => {
             }
 
             // Trigger Marketing SMS if this is a "Today's Special"
-            if (payload.is_today_special && (modalItem === 'new' || (modalItem !== 'new' && !modalItem?.is_today_special))) {
+            if (payload.is_today_special && (modalItem === 'new' || (typeof modalItem === 'object' && modalItem !== null && !modalItem.is_today_special))) {
                 try {
                     console.log('Fetching customer phone numbers for marketing...');
                     const phoneNumbers = await orderService.getAllCustomerPhones();
